@@ -1,0 +1,2912 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Tiny authory_tech plugin.
+ *
+ * @package tiny_authory_tech
+ * @copyright  CTI <info@cursivetechnology.com>
+ * @copyright  2026 SEPTUM QA <info@authory.tech>
+ * @author kuldeep singh <mca.kuldeep.sekhon@gmail.com>
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+use mod_quiz\quiz_settings;
+use tiny_authory_tech\tiny_authory_tech_data;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_single_structure;
+use core_external\external_value;
+use tiny_authory_tech\constants;
+use tiny_authory_tech\helper;
+
+defined('MOODLE_INTERNAL') || die;
+
+require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+require_once($CFG->dirroot . '/mod/assign/locallib.php');
+require_once(__DIR__ . '/locallib.php');
+
+/**
+ * Tiny authory_tech plugin.
+ *
+ * @package tiny_authory_tech
+ * @copyright  CTI <info@cursivetechnology.com>
+ * @copyright  2026 SEPTUM QA <info@authory.tech>
+ * @author kuldeep singh <mca.kuldeep.sekhon@gmail.com>
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class authory_tech_json_func_data extends external_api {
+    /**
+     * Return the ID of the oldest file record for a user, with in-request caching.
+     *
+     * Avoids repeated identical queries across functions that all need to know
+     * whether the current file is the user's first submission.
+     *
+     * @param int $userid
+     * @return int|null  File ID, or null if the user has no files.
+     */
+    private static function get_user_first_file_id(int $userid): ?int {
+        static $cache = [];
+        if ($userid <= 0) {
+            return null;
+        }
+        if (!array_key_exists($userid, $cache)) {
+            global $DB;
+            $sql = 'SELECT id FROM {tiny_authory_tech_files}
+                     WHERE userid = :userid ORDER BY id ASC LIMIT 1';
+            $rec = $DB->get_record_sql($sql, ['userid' => $userid], IGNORE_MISSING);
+            $cache[$userid] = $rec ? (int)$rec->id : null;
+        }
+        return $cache[$userid];
+    }
+
+    /**
+     * get_user_list_parameters.
+     *
+     * @return external_function_parameters
+     */
+    public static function get_user_list_parameters() {
+        return new external_function_parameters(
+            [
+                'page' => new external_value(PARAM_INT, '', VALUE_DEFAULT, null),
+                'courseid' => new external_value(PARAM_INT, 'Course id', VALUE_DEFAULT, null),
+            ],
+        );
+    }
+
+    /**
+     * Get list of users
+     *
+     * @param int|null $page Page number
+     * @param int|null $courseid ID of the course
+     * @return false|string JSON encoded list of users or false on failure
+     * @throws coding_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_user_list($page, $courseid) {
+
+        global $DB;
+
+        // Validate parameters.
+        $params = self::validate_parameters(
+            self::get_user_list_parameters(),
+            [
+                'page' => $page,
+                'courseid' => $courseid,
+            ],
+        );
+
+        // Get course context.
+        $cm = $DB->get_record('course_modules', ['course' => $params['courseid']], '*', MUST_EXIST);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+        // Get the list of users in the course.
+        $users = tiny_authory_tech_data::get_courses_users($params);
+
+        // Return the user list as JSON.
+        return json_encode($users);
+    }
+
+
+    /**
+     * get_user_list_returns
+     *
+     * @return external_value
+     */
+    public static function get_user_list_returns() {
+        return new external_value(PARAM_TEXT, 'All quizzes');
+    }
+
+    /**
+     * get_module_list_parameters
+     *
+     * @return external_function_parameters
+     */
+    public static function get_module_list_parameters() {
+        return new external_function_parameters(
+            [
+                'page' => new external_value(PARAM_INT, 'pagenumber', VALUE_DEFAULT, null),
+                'courseid' => new external_value(PARAM_INT, 'Course id', VALUE_DEFAULT, null),
+            ],
+        );
+    }
+
+    /**
+     * Get list of modules in a course
+     *
+     * @param int|null $page Page number
+     * @param int|null $courseid ID of the course
+     * @return false|string JSON encoded list of modules or false on failure
+     * @throws coding_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_module_list($page, $courseid) {
+
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/accesslib.php');
+
+        // Validate parameters.
+        $params = self::validate_parameters(
+            self::get_module_list_parameters(),
+            [
+                'page' => $page,
+                'courseid' => $courseid,
+            ],
+        );
+
+        // Get course context.
+        $cm = $DB->get_record('course_modules', ['course' => $params['courseid']], '*', MUST_EXIST);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+        // Get the list of modules in the course.
+        $modules = tiny_authory_tech_data::get_courses_modules($params);
+
+        // Return the module list as JSON.
+        return json_encode($modules);
+    }
+
+
+
+     /**
+      * Returns description of get_module_list() result value
+      *
+      * @return external_value The return value definition for module list response
+      */
+    public static function get_module_list_returns() {
+        return new external_value(PARAM_TEXT, 'All quizzes');
+    }
+
+     /**
+      * Returns the parameters definition for authory_tech_user_comments_func
+      *
+      * @return external_function_parameters Parameters definition for storing user comments
+      */
+    public static function authory_tech_user_comments_func_parameters() {
+        return new external_function_parameters(
+            [
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+                'resourceid' => new external_value(PARAM_INT, 'resourceid', VALUE_DEFAULT, 0),
+                'courseid' => new external_value(PARAM_INT, 'courseid', VALUE_DEFAULT, 0),
+                'usercomment' => new external_value(PARAM_TEXT, 'usercomment', VALUE_DEFAULT, null),
+                'timemodified' => new external_value(PARAM_INT, 'timemodified', VALUE_DEFAULT, 0),
+                'editorid' => new external_value(PARAM_TEXT, 'editorid', VALUE_DEFAULT, ''),
+            ],
+        );
+    }
+
+    /**
+     * Store user comments for authory_tech writing
+     *
+     * @param string $modulename The name of the module
+     * @param int $cmid Course module ID
+     * @param int $resourceid Resource ID
+     * @param int $courseid Course ID
+     * @param string $usercomment The user's comment text
+     * @param int $timemodified Time when comment was modified
+     * @param string $editorid Editor instance ID
+     * @return bool True if comment saved successfully, false otherwise
+     * @throws coding_exception If parameters are invalid
+     * @throws moodle_exception If user lacks required capabilities
+     */
+    public static function authory_tech_user_comments_func(
+        $modulename,
+        $cmid,
+        $resourceid,
+        $courseid,
+        $usercomment,
+        $timemodified,
+        $editorid,
+    ) {
+        global $DB, $USER, $CFG;
+
+        $params = self::validate_parameters(
+            self::authory_tech_user_comments_func_parameters(),
+            [
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+                'resourceid' => $resourceid,
+                'courseid' => $courseid,
+                'usercomment' => $usercomment,
+                'timemodified' => $timemodified,
+                'editorid' => $editorid,
+            ],
+        );
+        require_once($CFG->libdir . '/accesslib.php');
+        // Capability check.
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:write", $context);
+
+        $userid = $USER->id;
+        $editoridarr = explode(':', $params['editorid']);
+        if (count($editoridarr) > 1) {
+            $uniqueid = substr($editoridarr[0] . "\n", 1);
+            $slot = substr($editoridarr[1] . "\n", 0, -11);
+            $quba = question_engine::load_questions_usage_by_activity($uniqueid);
+            $question = $quba->get_question($slot, false);
+            $questionid = $question->id;
+        }
+        $dataobject = new stdClass();
+        $dataobject->userid = $userid;
+        $dataobject->cmid = $params['cmid'];
+        $dataobject->modulename = $params['modulename'];
+        $dataobject->resourceid = $params['resourceid'];
+        $dataobject->courseid = $params['courseid'];
+        $dataobject->questionid = $questionid ?? 0;
+        $dataobject->usercomment = $params['usercomment'];
+        $dataobject->timemodified = $params['timemodified'];
+
+        try {
+            $DB->insert_record('tiny_authory_tech_comments', $dataobject);
+            return true;
+        } catch (moodle_exception $e) {
+            debugging($e->getMessage(), DEBUG_DEVELOPER);
+            return false;
+        }
+    }
+
+    /**
+     * Returns the expected return value for the user comments function
+     *
+     * @return external_value The return value definition for user comments response
+     */
+    public static function authory_tech_user_comments_func_returns() {
+        return new external_value(PARAM_BOOL, 'All User Comments');
+    }
+
+
+    /**
+     * authory_tech_approve_token_func_parameters
+     *
+     * @return external_function_parameters
+     */
+    public static function authory_tech_approve_token_func_parameters() {
+        return new external_function_parameters(
+            [
+                'token' => new external_value(PARAM_TEXT, 'usertoken', VALUE_DEFAULT, ''),
+            ],
+        );
+    }
+
+    /**
+     * Verifies and approves a token by sending it to a remote server for validation
+     *
+     * @param string $token The token to verify and approve
+     * @return bool|string Returns the server response if successful, false on failure
+     * @throws coding_exception If parameters are invalid
+     * @throws dml_exception If there is a database error
+     * @throws moodle_exception If token verification fails or there are other errors
+     */
+    public static function authory_tech_approve_token_func($token) {
+        global $CFG;
+
+        require_once($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/lib.php');
+        $params = self::validate_parameters(
+            self::authory_tech_approve_token_func_parameters(),
+            [
+                'token' => $token,
+            ],
+        );
+        // Check if the user has the required capability.
+        $context = context_system::instance(); // Assuming a system-wide capability check.
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:editsettings', $context);
+
+        $result = authory_tech_approve_token();
+
+        return $result;
+    }
+
+
+    /**
+     * Returns the expected return value for the token approval function
+     *
+     * @return external_value The return value definition for token approval response
+     */
+    public static function authory_tech_approve_token_func_returns() {
+        return new external_value(PARAM_TEXT, 'Token Approved');
+    }
+
+    /**
+     * authory_tech_test_connection_parameters
+     *
+     * @return external_function_parameters
+     */
+    public static function authory_tech_test_connection_parameters() {
+        return new external_function_parameters(
+            [
+                'url' => new external_value(PARAM_URL, 'API URL to test', VALUE_DEFAULT, ''),
+            ],
+        );
+    }
+
+    /**
+     * Tests connectivity to the ML server using the provided URL.
+     *
+     * @param string $url The API URL to test
+     * @return string JSON-encoded result with status and message
+     * @throws coding_exception
+     * @throws moodle_exception
+     */
+    public static function authory_tech_test_connection($url) {
+        global $CFG;
+
+        require_once($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/lib.php');
+        $params = self::validate_parameters(
+            self::authory_tech_test_connection_parameters(),
+            ['url' => $url],
+        );
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:editsettings', $context);
+
+        return authory_tech_test_connection($params['url']);
+    }
+
+    /**
+     * Returns the return value definition for authory_tech_test_connection
+     *
+     * @return external_value
+     */
+    public static function authory_tech_test_connection_returns() {
+        return new external_value(PARAM_TEXT, 'Connection test result');
+    }
+
+    /**
+     * Returns the parameters definition for get_comment_link function
+     *
+     * @return external_function_parameters Parameters definition for get_comment_link
+     */
+    public static function get_comment_link_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, null),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, null),
+                'questionid' => new external_value(PARAM_INT, 'questionid', VALUE_DEFAULT, null),
+                'userid' => new external_value(PARAM_INT, 'userid', VALUE_DEFAULT, null),
+            ],
+        );
+    }
+
+    /**
+     * Retrieves comment links and associated data for a given resource
+     *
+     * @param int $id The resource ID
+     * @param string $modulename The name of the module (e.g. 'quiz')
+     * @param int $cmid The course module ID
+     * @param int $questionid The question ID
+     * @param int $userid The user ID
+     * @return string JSON encoded array containing comment data and user writing metrics
+     * @throws coding_exception If parameters are invalid
+     * @throws dml_exception If there is a database error
+     * @throws invalid_parameter_exception If parameters fail validation
+     * @throws moodle_exception If capability check fails
+     */
+    public static function get_comment_link($id, $modulename, $cmid, $questionid, $userid) {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/lib/accesslib.php');
+        require_once($CFG->dirroot . '/question/lib.php');
+        $params = self::validate_parameters(
+            self::get_comment_link_parameters(),
+            [
+                'id' => $id,
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+                'questionid' => $questionid,
+                'userid' => $userid,
+            ],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:view", $context);
+
+        if ($params['modulename'] == 'quiz') {
+            $data['filename'] = '';
+            $conditions = [
+                "resourceid" => $params['id'],
+                "cmid" => $params['cmid'],
+                "questionid" => $params['questionid'],
+                'userid' => $params['userid'],
+            ];
+            $table = 'tiny_authory_tech_comments';
+            $recs = $DB->get_records($table, $conditions);
+            $sql = 'SELECT filename, content, userid, id AS file_id, uploaded
+                      FROM {tiny_authory_tech_files}
+                     WHERE resourceid = :resourceid AND cmid = :cmid
+                           AND modulename = :modulename AND questionid=:questionid AND userid = :userid ';
+            $filename = $DB->get_record_sql(
+                $sql,
+                [
+                    'resourceid' => $params['id'],
+                    'cmid' => $params['cmid'],
+                    'modulename' => $params['modulename'],
+                    'questionid' => $params['questionid'],
+                    "userid" => $params['userid'],
+                ],
+            );
+            if ($filename) {
+                $data['filename'] = $filename->filename;
+                $data['questionid'] = $params['questionid'];
+
+                if ($data['filename']) {
+                    $firstfileid = self::get_user_first_file_id((int)$filename->userid);
+                    $data['first_file'] = ($firstfileid !== null && $firstfileid == $filename->file_id) ? 1 : 0;
+                }
+
+                if ($filename->file_id) {
+                    $sql = 'SELECT uwr.*, diff.meta as effort_ratio
+                            FROM {tiny_authory_tech_user_writing} uwr
+                        LEFT JOIN {tiny_authory_tech_writing_diff} diff ON uwr.file_id = diff.file_id
+                            WHERE uwr.file_id = :fileid';
+                    $report = $DB->get_record_sql($sql, ['fileid' => $filename->file_id]);
+                    if (isset($report->effort_ratio)) {
+                        $report->effort_ratio = intval(floatval($report->effort_ratio) * 100);
+                    }
+                    if ($report) {
+                        $data['score'] = $report->score;
+                        $data['total_time_seconds'] = $report->total_time_seconds;
+                        $data['word_count'] = $report->word_count;
+                        $data['words_per_minute'] = $report->words_per_minute;
+                        $data['backspace_percent'] = $report->backspace_percent;
+                        $data['copy_behavior'] = $report->copy_behavior;
+                        $data['key_count'] = $report->key_count;
+                        $data['file_id'] = $filename->file_id;
+                        $data['character_count'] = $report->character_count;
+                        $data['characters_per_minute'] = $report->characters_per_minute;
+                        $data['keys_per_minute'] = $report->keys_per_minute;
+                        $data['effort_ratio'] = $report->effort_ratio ?? 0;
+                        $data['uploaded'] = $filename->uploade;
+                    }
+                }
+            }
+            $usercomment = [];
+            if ($recs) {
+                foreach ($recs as $key => $rec) {
+                    array_push($usercomment, $rec);
+                }
+                $data['resubmit'] = constants::is_resubmitable($data, $filename->file_id);
+                $data['file_id'] = $filename->file_id ?? null;
+                $data['cmid'] = $params['cmid'];
+                return json_encode(['usercomment' => $usercomment, 'data' => $data]);
+            } else {
+                return json_encode(['usercomment' => 'comments', 'data' => $data]);
+            }
+        } else {
+            $conditions = ["resourceid" => $params['id']];
+            $table = 'tiny_authory_tech_comments';
+            $recs = $DB->get_records($table, $conditions);
+
+            $attempts = "SELECT  uw.total_time_seconds ,uw.word_count ,uw.words_per_minute,
+                                 uw.backspace_percent,uw.score,uw.copy_behavior,uf.resourceid,
+                                 uf.modulename,uf.userid, uf.filename, uf.uploaded,
+                           FROM {tiny_authory_tech_user_writing} uw
+                           JOIN {tiny_authory_tech_files} uf ON uw.file_id = uf.id
+                          WHERE uf.resourceid = :id
+                                AND uf.cmid = :cmid
+                                AND uf.modulename = :modulename";
+            $data = $DB->get_record_sql($attempts, [
+                'id' => $params['id'],
+                'cmid' => $params['cmid'],
+                'modulename' => $params['modulename'],
+            ]);
+
+            if (!isset($data->filename)) {
+                $conditions = [
+                            'resourceid' => $params['id'],
+                            'cmid'       => $params['cmid'],
+                            'modulename' => $params['modulename']];
+                $filename = $DB->get_record('tiny_authory_tech_files', $conditions, 'id, filename');
+                $data['filename'] = $filename->filename;
+            }
+            $data['resubmit'] = constants::is_resubmitable($data, $filename->id);
+            $data['file_id'] = $filename->id ?? null;
+            $data['cmid'] = $params['cmid'];
+            $usercomment = [];
+            if ($recs) {
+                foreach ($recs as $key => $rec) {
+                    array_push($usercomment, $rec);
+                }
+                return json_encode(['usercomment' => $usercomment, 'data' => $data]);
+            } else {
+                return json_encode(['usercomment' => 'comments', 'data' => $data]);
+            }
+        }
+    }
+
+
+    /**
+     * get_comment_link_returns
+     *
+     * @return external_value
+     */
+    public static function get_comment_link_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * get_forum_comment_link_parameters
+     *
+     * @return external_function_parameters
+     */
+    public static function get_forum_comment_link_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, null),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+            ],
+        );
+    }
+
+
+    /**
+     * Get forum comment link data
+     *
+     * @param int $id The resource ID
+     * @param string $modulename The name of the module
+     * @param int|null $cmid The course module ID
+     * @return string JSON encoded comment and data
+     * @throws coding_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_forum_comment_link($id, $modulename, $cmid = null) {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/lib/accesslib.php');
+        require_once($CFG->dirroot . '/question/lib.php');
+
+        $params = self::validate_parameters(
+            self::get_forum_comment_link_parameters(),
+            [
+                'id' => (int) $id,
+                'modulename' => $modulename,
+                'cmid' => (int) $cmid,
+            ],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $conditions = ["resourceid" => $params['id'], 'modulename' => "forum"];
+        $recs = $DB->get_records('tiny_authory_tech_comments', $conditions);
+
+        $attempts = "SELECT uw.total_time_seconds, uw.word_count, uw.words_per_minute, uf.uploaded,
+                            uw.backspace_percent, uw.score, uw.copy_behavior, uf.resourceid,
+                            uf.modulename, uf.userid, uf.filename, uw.file_id,
+                            diff.meta AS effort_ratio
+                      FROM {tiny_authory_tech_user_writing} uw
+                      JOIN {tiny_authory_tech_files} uf ON uw.file_id = uf.id
+                 LEFT JOIN {tiny_authory_tech_writing_diff} diff ON uw.file_id = diff.file_id
+                     WHERE uf.resourceid = :id
+                           AND uf.cmid = :cmid
+                           AND uf.modulename = :modulename";
+
+        $data =
+            $DB->get_record_sql(
+                $attempts,
+                ['id' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+            );
+        if (isset($data->effort_ratio)) {
+            $data->effort_ratio = intval(floatval($data->effort_ratio) * 100);
+        }
+        $data = (array) $data;
+        $data['first_file'] = 0;
+
+        if (!isset($data['filename'])) {
+            $sql = 'SELECT id as file_id, filename,userid, content
+                      FROM {tiny_authory_tech_files}
+                     WHERE resourceid = :resourceid
+                            AND cmid = :cmid
+                            AND modulename = :modulename';
+            $filename = $DB->get_record_sql(
+                $sql,
+                ['resourceid' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+            );
+
+            $data['filename'] = $filename->filename;
+            $data['file_id'] = $filename->file_id;
+            $data['resubmit'] = constants::is_resubmitable($data, $filename->file_id);
+            $data['cmid'] = $params['cmid'];
+
+            $firstfileid = self::get_user_first_file_id((int)$filename->userid);
+            if ($firstfileid !== null && $firstfileid == $filename->file_id) {
+                $data['first_file'] = 1;
+            }
+        }
+
+        $firstfileid = self::get_user_first_file_id((int)($data['userid'] ?? 0));
+        if ($firstfileid !== null && isset($filename) && $firstfileid == $filename->file_id) {
+            $data['first_file'] = 1;
+        }
+
+        $usercomment = [];
+        if ($recs) {
+            foreach ($recs as $key => $rec) {
+                array_push($usercomment, $rec);
+            }
+
+            return json_encode(['usercomment' => $usercomment, 'data' => $data]);
+        } else {
+            return json_encode(['usercomment' => 'comments', 'data' => $data]);
+        }
+    }
+
+    /**
+     * Returns description of get_forum_comment_link() result value
+     *
+     * @return external_value The return value definition for forum comment link response
+     */
+    public static function get_forum_comment_link_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * Returns description of get_quiz_comment_link() parameters
+     *
+     * @return external_function_parameters Parameters definition for quiz comment link
+     */
+    public static function get_quiz_comment_link_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, null),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, null),
+                'questionid' => new external_value(PARAM_INT, 'questionid', VALUE_DEFAULT, null),
+            ],
+        );
+    }
+
+    /**
+     * Get quiz comment link data including user comments and writing analytics
+     *
+     * @param int $id The resource ID
+     * @param string $modulename The module name (e.g. 'quiz')
+     * @param int|null $cmid The course module ID
+     * @param int|null $questionid The question ID for quiz questions
+     * @return string JSON encoded array containing user comments and analytics data
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_quiz_comment_link(
+        $id,
+        $modulename,
+        $cmid = null,
+        $questionid = null,
+    ) {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/lib/accesslib.php');
+        require_once($CFG->dirroot . '/question/lib.php');
+        $params = self::validate_parameters(
+            self::get_comment_link_parameters(),
+            [
+                'id' => $id,
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+                'questionid' => $questionid,
+            ],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        if ($modulename == 'quiz') {
+            $conditions = ["resourceid" => $params['id'], "cmid" => $params['cmid'], "questionid" => $params['questionid']];
+            $table = 'tiny_authory_tech_comments';
+            $recs = $DB->get_records($table, $conditions);
+
+            $attempts = "SELECT uw.total_time_seconds ,uw.word_count ,uw.words_per_minute,
+                                uw.backspace_percent,uw.score,uw.copy_behavior,uf.resourceid ,
+                                uf.modulename,uf.userid, uf.filename
+                           FROM {tiny_authory_tech_user_writing} uw
+                           JOIN {tiny_authory_tech_files} uf ON uw.file_id =uf.id
+                          WHERE uf.resourceid = :id
+                                AND uf.cmid = :cmid
+                                AND uf.modulename = :modulename";
+            $data = $DB->get_record_sql(
+                $attempts,
+                ['id' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+            );
+
+            if (!isset($data->filename)) {
+                $sql = 'SELECT filename
+                          FROM {tiny_authory_tech_files}
+                         WHERE resourceid = :resourceid
+                               AND cmid = :cmid
+                               AND modulename = :modulename';
+                $filename = $DB->get_record_sql(
+                    $sql,
+                    ['resourceid' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+                );
+
+                $data['filename'] = $filename->filename;
+            }
+        } else {
+            $conditions = ["resourceid" => $params['id']];
+            $table = 'tiny_authory_tech_comments';
+            $recs = $DB->get_records($table, $conditions);
+
+            $attempts = "SELECT uw.total_time_seconds ,uw.word_count ,uw.words_per_minute,
+                                uw.backspace_percent,uw.score,uw.copy_behavior,uf.resourceid ,
+                                uf.modulename,uf.userid, uf.filename
+                           FROM {tiny_authory_tech_user_writing} uw
+                           JOIN {tiny_authory_tech_files} uf ON uw.file_id =uf.id
+                          WHERE uf.resourceid = :id
+                                AND uf.cmid = :cmid
+                                AND uf.modulename = :modulename ";
+            $data = $DB->get_record_sql(
+                $attempts,
+                ['id' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+            );
+
+            if (!isset($data->filename)) {
+                $sql = 'SELECT filename
+                          FROM {tiny_authory_tech_files}
+                         WHERE resourceid = :resourceid
+                               AND cmid = :cmid
+                               AND modulename = :modulename';
+                $filename = $DB->get_record_sql(
+                    $sql,
+                    ['resourceid' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+                );
+
+                $data['filename'] = $filename->filename;
+            }
+        }
+        $usercomment = [];
+        if ($recs) {
+            foreach ($recs as $key => $rec) {
+                array_push($usercomment, $rec);
+            }
+            return json_encode(['usercomment' => $usercomment, 'data' => $data]);
+        } else {
+            return json_encode(['usercomment' => 'comments', 'data' => $data]);
+        }
+    }
+
+    /**
+     * Returns description of get_quiz_comment_link() result value
+     *
+     * @return external_value The return value definition for quiz comment link response
+     */
+    public static function get_quiz_comment_link_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * Returns the parameters definition for get_assign_comment_link function
+     *
+     * @return external_function_parameters Parameters definition for assignment comment link
+     */
+    public static function get_assign_comment_link_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_INT, 'id', VALUE_REQUIRED),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_REQUIRED),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_REQUIRED),
+            ],
+        );
+    }
+
+    /**
+     * Get assignment comment link
+     *
+     * @param int $id The assignment submission ID
+     * @param string $modulename The module name
+     * @param int $cmid The course module ID
+     * @return false|string JSON encoded comment data
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_assign_comment_link($id, $modulename, $cmid) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::get_assign_comment_link_parameters(),
+            [
+                'id' => $id,
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+            ],
+        );
+
+        // Check if user has capability to view assignment comments.
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $recassignsubmission = $DB->get_record('assign_submission', ['id' => $params['id']], '*', false);
+        $userid = $recassignsubmission->userid;
+        $conditions = ["userid" => $userid, 'modulename' => $params['modulename'], 'cmid' => $params['cmid']];
+        $recs = $DB->get_records('tiny_authory_tech_comments', $conditions);
+        $usercomment = [];
+        if ($recs) {
+            foreach ($recs as $rec) {
+                array_push($usercomment, $rec);
+            }
+            return json_encode($usercomment);
+        } else {
+            return json_encode([['usercomment' => 'comments']]);
+        }
+    }
+
+    /**
+     * Returns description of get_assign_comment_link() result value
+     *
+     * @return external_value The return value definition for assignment comment link response
+     */
+    public static function get_assign_comment_link_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * Returns the parameters definition for get_assign_grade_comment function
+     *
+     * @return external_function_parameters Parameters definition for assignment grade comment
+     */
+    public static function get_assign_grade_comment_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_INT, 'id', VALUE_REQUIRED),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_REQUIRED),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_REQUIRED),
+            ],
+        );
+    }
+
+    /**
+     * Get assignment grade comment data
+     *
+     * @param int $id The user ID
+     * @param string $modulename The module name
+     * @param int $cmid The course module ID
+     * @return false|string JSON encoded comment and data
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_assign_grade_comment($id, $modulename, $cmid) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::get_assign_grade_comment_parameters(),
+            [
+                'id' => $id,
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+            ],
+        );
+
+        // Check if user has capability to view assignment comments.
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $conditions = ["userid" => $params['id'], 'modulename' => $params['modulename'], 'cmid' => $params['cmid']];
+        $table = 'tiny_authory_tech_comments';
+        $recs = $DB->get_records($table, $conditions);
+
+        $attempts = "SELECT uw.total_time_seconds, uw.word_count, uw.words_per_minute,
+                            uw.backspace_percent, uw.score, uw.copy_behavior, uf.resourceid,
+                            uf.modulename, uf.userid, uw.file_id, uf.filename, uf.uploaded,
+                            diff.meta AS effort_ratio
+                       FROM {tiny_authory_tech_user_writing} uw
+                       JOIN {tiny_authory_tech_files} uf ON uw.file_id = uf.id
+                  LEFT JOIN {tiny_authory_tech_writing_diff} diff ON uw.file_id = diff.file_id
+                      WHERE uf.userid = :id
+                            AND uf.cmid = :cmid
+                            AND uf.modulename = :modulename";
+
+        $data =
+            $DB->get_record_sql(
+                $attempts,
+                [
+                    'id' => $params['id'],
+                    'cmid' => $params['cmid'],
+                    'modulename' => $params['modulename'],
+                ],
+            );
+        if (isset($data->effort_ratio)) {
+            $data->effort_ratio = intval(floatval($data->effort_ratio) * 100);
+        }
+        $data = (array) $data;
+        if (!isset($data['filename'])) {
+            $sql = 'SELECT filename, content, id, userid
+                      FROM {tiny_authory_tech_files}
+                     WHERE userid = :userid
+                            AND cmid = :cmid
+                            AND modulename = :modulename';
+            $filename = $DB->get_record_sql(
+                $sql,
+                ['userid' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
+            );
+
+            $data['filename'] = $filename->filename;
+            $data['file_id'] = $filename->id;
+            $data['userid'] = $filename->userid;
+        }
+        if ($data['filename']) {
+            $firstfileid = self::get_user_first_file_id((int)$data['userid']);
+            $data['first_file'] = ($firstfileid !== null && $firstfileid == $data['file_id']) ? 1 : 0;
+        }
+        $data['resubmit'] = constants::is_resubmitable($data, $data['file_id'] ?? null);
+        $data['file_id'] = $data['file_id'] ?? null;
+        $data['cmid'] = $params['cmid'];
+        $usercomment = [];
+        if ($recs) {
+            foreach ($recs as $key => $rec) {
+                array_push($usercomment, $rec);
+            }
+            return json_encode(['usercomment' => $usercomment, 'data' => $data]);
+        } else {
+            return json_encode(['usercomment' => 'comments', 'data' => $data]);
+        }
+    }
+
+    /**
+     * Returns description of get_assign_grade_comment() result value
+     *
+     * @return external_value The return value definition for assignment grade comment response
+     */
+    public static function get_assign_grade_comment_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * Returns parameters for getting user list submission statistics
+     *
+     * @return external_function_parameters Parameters definition for submission stats
+     */
+    public static function get_user_list_submission_stats_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, null),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, null),
+                'filename' => new external_value(PARAM_TEXT, 'filename', VALUE_DEFAULT, ''),
+            ],
+        );
+    }
+
+    /**
+     * Get user list submission statistics
+     *
+     * @param int $id The user ID
+     * @param string $modulename The module name
+     * @param int $cmid The course module ID
+     * @return false|string JSON encoded submission statistics
+     * @throws coding_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_user_list_submission_stats($id, $modulename, $cmid) {
+
+        $params = self::validate_parameters(
+            self::get_user_list_submission_stats_parameters(),
+            [
+                'id' => $id,
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+            ],
+        );
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:view", $context);
+
+        $rec = tiny_authory_tech_get_user_submissions_data($params['id'], $params['modulename'], $params['cmid']);
+
+        return json_encode($rec);
+    }
+
+    /**
+     * Returns description of get_user_list_submission_stats() result value
+     *
+     * @return external_value The return value definition for submission stats response
+     */
+    public static function get_user_list_submission_stats_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * Returns parameters for get_assign_dashboard_students
+     *
+     * @return external_function_parameters
+     */
+    public static function get_assign_dashboard_students_parameters() {
+        return new external_function_parameters([
+            'cmid' => new external_value(PARAM_INT, 'Course module ID'),
+        ]);
+    }
+
+    /**
+     * Get all students who have submission data for a given assignment cmid.
+     *
+     * @param int $cmid Course module ID
+     * @return string JSON encoded array of students
+     * @throws coding_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function get_assign_dashboard_students($cmid) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::get_assign_dashboard_students_parameters(),
+            ['cmid' => $cmid]
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $sql = "SELECT u.id AS userid, u.firstname, u.lastname, f.id AS file_id
+                  FROM {tiny_authory_tech_files} f
+                  JOIN {user} u ON f.userid = u.id
+                 WHERE f.cmid = :cmid
+                   AND f.modulename = 'assign'
+                   AND f.id = (
+                       SELECT MAX(f2.id)
+                         FROM {tiny_authory_tech_files} f2
+                        WHERE f2.userid = f.userid
+                          AND f2.cmid = f.cmid
+                          AND f2.modulename = f.modulename
+                   )
+              ORDER BY u.lastname, u.firstname";
+
+        $rows = $DB->get_records_sql($sql, ['cmid' => $params['cmid']]);
+
+        $students = array_values(array_map(function ($row) {
+            return [
+                'userid'    => (int) $row->userid,
+                'firstname' => $row->firstname,
+                'lastname'  => $row->lastname,
+                'fullname'  => $row->firstname . ' ' . $row->lastname,
+                'file_id'   => (int) $row->file_id,
+            ];
+        }, $rows));
+
+        return json_encode($students);
+    }
+
+    /**
+     * Returns description of get_assign_dashboard_students() result value
+     *
+     * @return external_value
+     */
+    public static function get_assign_dashboard_students_returns() {
+        return new external_value(PARAM_TEXT, 'JSON array of students');
+    }
+
+    /**
+     * Returns parameters for filtering writing data
+     *
+     * @return external_function_parameters Parameters definition for filtering writing data
+     */
+    public static function authory_tech_filtered_writing_func_parameters() {
+        return new external_function_parameters(
+            [
+                'id' => new external_value(PARAM_TEXT, 'id', VALUE_REQUIRED, 0),
+            ],
+        );
+    }
+
+    /**
+     * Get filtered writing data for a course
+     *
+     * @param int $id Course ID
+     * @return string|false JSON encoded data containing filtered writing statistics
+     * @throws coding_exception If parameters are invalid
+     * @throws dml_exception If database query fails
+     * @throws invalid_parameter_exception If parameters validation fails
+     * @throws moodle_exception If context validation fails
+     */
+    public static function authory_tech_filtered_writing_func($id) {
+        global $DB, $USER;
+
+        $vparams = self::validate_parameters(
+            self::authory_tech_filtered_writing_func_parameters(),
+            [
+                'id' => $id,
+            ],
+        );
+
+        $userid = $USER->id;
+        $params = [];
+
+        $cm = $DB->get_record('course_modules', ['course' => $vparams['id']], '*', IGNORE_MULTIPLE);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $attempts = "SELECT qa.resourceid AS attemptid,qa.timemodified,uw.score,uw.copy_behavior, u.id AS userid,
+                            u.firstname, u.lastname, u.email,  qa.cmid AS cmid ,qa.courseid,qa.filename,uw.word_count,
+                            uw.words_per_minute , uw.total_time_seconds ,uw.backspace_percent
+                       FROM {user} u
+                       JOIN {tiny_authory_tech_files} qa ON u.id = qa.userid
+                  LEFT JOIN {tiny_authory_tech_user_writing} uw ON qa.id = uw.file_id
+                      WHERE qa.userid! = 1";
+
+        if ($userid != 0) {
+            $attempts .= " AND  qa.userid = :userid";
+            $params['userid'] = $userid;
+        }
+        if ($vparams['id'] != 0) {
+            $attempts .= "  AND qa.courseid = :id";
+            $params['id'] = $vparams['id'];
+        }
+        $res = $DB->get_records_sql($attempts, $params);
+        $recs = [];
+        foreach ($res as $key => $value) {
+            $value->timemodified = date("l jS \of F Y h:i:s A", $value->timemodified);
+            $value->icon = 'fa fa-circle-o';
+            $value->color = 'grey';
+            array_push($recs, $value);
+        }
+        $resncount = ['count' => count($res), 'data' => $recs];
+        return json_encode($resncount);
+    }
+
+    /**
+     * Returns description of method result value for authory_tech_filtered_writing_func
+     *
+     * @return external_value The return value definition for filtered writing data
+     */
+    public static function authory_tech_filtered_writing_func_returns() {
+        return new external_value(PARAM_TEXT, 'Comment Link');
+    }
+
+    /**
+     * Returns parameters for store_user_writing method
+     *
+     * @return external_function_parameters Parameters definition for storing user writing data
+     */
+    public static function store_user_writing_parameters() {
+        return new external_function_parameters(self::storing_user_writing_param());
+    }
+
+    /**
+     * Stores user writing data in the database
+     *
+     * @param int $personid User ID
+     * @param int $fileid File ID to store data for
+     * @param int $charactercount Total number of characters typed
+     * @param int $totaltimeseconds Total time spent writing in seconds
+     * @param float $charactersperminute Characters typed per minute
+     * @param int $keycount Total number of keystrokes
+     * @param float $keysperminute Keystrokes per minute
+     * @param int $wordcount Total number of words written
+     * @param float $wordsperminute Words written per minute
+     * @param float $backspacepercent Percentage of backspace usage
+     * @param string $copybehavior Copy/paste behavior flag
+     * @param float $score Writing score
+     * @param  int $qualityaccess Quality access flag
+     * @return array Array containing status and message
+     */
+    public static function store_user_writing(
+        $personid,
+        $fileid,
+        $charactercount,
+        $totaltimeseconds,
+        $charactersperminute,
+        $keycount,
+        $keysperminute,
+        $wordcount,
+        $wordsperminute,
+        $backspacepercent,
+        $copybehavior,
+        $score,
+        $qualityaccess,
+    ) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::store_user_writing_parameters(),
+            [
+                'person_id' => $personid,
+                'file_id' => $fileid,
+                'character_count' => $charactercount,
+                'total_time_seconds' => $totaltimeseconds,
+                'characters_per_minute' => $charactersperminute,
+                'key_count' => $keycount,
+                'keys_per_minute' => $keysperminute,
+                'word_count' => $wordcount,
+                'words_per_minute' => $wordsperminute,
+                'backspace_percent' => $backspacepercent,
+                'copy_behavior' => $copybehavior,
+                'score' => $score,
+                'quality_access' => $qualityaccess,
+            ],
+        );
+
+        try {
+            $context = context_system::instance();
+            // Assuming a system-wide capability check.
+            self::validate_context($context);
+            require_capability('tiny/authory_tech:editsettings', $context);
+
+            $backspacepercent = round($params['backspace_percent'], 4);
+
+            // Check if the record exists.
+            $recordexists = $DB->record_exists('tiny_authory_tech_user_writing', ['file_id' => $params['file_id']]);
+            // Retrieve existing data or initialize a new stdClass object.
+            $data = $recordexists
+                ? $DB->get_record('tiny_authory_tech_user_writing', ['file_id' => $params['file_id']])
+                : new stdClass();
+
+            // Populate data attributes.
+            $data->file_id = $params['file_id'];
+            $data->total_time_seconds = $params['total_time_seconds'];
+            $data->key_count = $params['key_count'];
+            $data->keys_per_minute = $params['keys_per_minute'];
+            $data->character_count = $params['character_count'];
+            $data->characters_per_minute = $params['characters_per_minute'];
+            $data->word_count = $params['word_count'];
+            $data->words_per_minute = $params['words_per_minute'];
+            $data->backspace_percent = $params['backspace_percent'];
+            $data->score = $params['score'];
+            $data->copy_behavior = $params['copy_behavior'];
+            $data->quality_access = $params['quality_access'];
+
+            // Update or insert the record.
+            if ($recordexists) {
+                $DB->update_record('tiny_authory_tech_user_writing', $data);
+            } else {
+                $DB->insert_record('tiny_authory_tech_user_writing', $data);
+            }
+
+            // Return success status.
+            return [
+                'status' => get_string('success', 'tiny_authory_tech'),
+                'message' => get_string('data_save', 'tiny_authory_tech'),
+            ];
+        } catch (dml_exception $e) {
+            // Return failure status with error message.
+            return [
+                'status' => get_string('failed', 'tiny_authory_tech'),
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Returns description of method result value for store_user_writing
+     *
+     * @return external_single_structure Returns structure containing status and message
+     */
+    public static function store_user_writing_returns() {
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'status message'),
+            'message' => new external_value(PARAM_TEXT, 'message'),
+        ]);
+    }
+
+
+    /**
+     * Returns parameters for getting reply JSON
+     *
+     * @return external_function_parameters Parameters definition for getting reply JSON
+     */
+    public static function authory_tech_get_reply_json_parameters() {
+        return new external_function_parameters([
+            'filepath' => new external_value(PARAM_TEXT, 'filepath', VALUE_DEFAULT, ''),
+        ]);
+    }
+
+    /**
+     * Get reply JSON data for a file
+     *
+     * @param string $filepath Path to the file to get reply JSON for
+     * @return stdClass Object containing status and data
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function authory_tech_get_reply_json($filepath) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::authory_tech_get_reply_json_parameters(),
+            [
+                'filepath' => $filepath,
+            ],
+        );
+        $parts = explode('_', $params['filepath']);
+        $cmid = $parts[2];
+        $userid = $parts[0];
+        $resourceid = $parts[1];
+
+        $context = context_module::instance($cmid);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:writingreport", $context);
+
+        $conditions = ["userid" => $userid, 'resourceid' => $resourceid, 'cmid' => $cmid];
+
+        $data = new stdClass();
+        try {
+            $filedata        = $DB->get_record('tiny_authory_tech_files', ['filename' => $params['filepath']]);
+            $comments        = $DB->get_records('tiny_authory_tech_comments', $conditions, '', 'usercomment');
+            $content         = $filedata->content ? $filedata->content : $content = false;
+            $originalcontent = $filedata->original_content ? $filedata->original_content : $originalcontent = false;
+            $data->status    = true;
+            $commentslist    = [];
+
+            foreach ($comments as $comment) {
+                $commentslist[] = $comment->usercomment;
+            }
+
+            $commentslist = array_values($commentslist);
+            $data->comments = json_encode($commentslist);
+
+            if ($content === false) {
+                $data->status = false;
+                $content = get_string('filenotfoundor', 'tiny_authory_tech');
+            }
+
+            $data->data = $content;
+            $data->original = $originalcontent;
+        } catch (moodle_exception $e) {
+            $data->data = $e->getMessage();
+        }
+        return $data;
+    }
+
+    /**
+     * Returns description of method result value for authory_tech_get_reply_json
+     *
+     * @return external_single_structure Returns structure containing status and data
+     */
+    public static function authory_tech_get_reply_json_returns() {
+        return new external_single_structure([
+            'status' => new external_value(PARAM_BOOL, "file status"),
+            'data' => new external_value(PARAM_TEXT, 'Reply Json'),
+            'comments' => new external_value(PARAM_TEXT, 'Comments'),
+            'original' => new external_value(PARAM_TEXT, 'Original Content'),
+        ]);
+    }
+
+    /**
+     * Method storing_user_writing_param
+     *
+     * @return array array of parameters for storing data
+     */
+    public static function storing_user_writing_param() {
+        return [
+            'person_id' => new external_value(PARAM_INT, 'person or user id', VALUE_REQUIRED),
+            'file_id' => new external_value(PARAM_INT, 'file_id', VALUE_REQUIRED),
+            'character_count' => new external_value(PARAM_INT, 'character_count', VALUE_REQUIRED),
+            'total_time_seconds' => new external_value(PARAM_INT, 'total_time_seconds', VALUE_REQUIRED),
+            'characters_per_minute' => new external_value(PARAM_INT, 'characters_per_minute', VALUE_REQUIRED),
+            'key_count' => new external_value(PARAM_INT, 'key_count', VALUE_REQUIRED),
+            'keys_per_minute' => new external_value(PARAM_INT, 'keys per minutes', VALUE_REQUIRED),
+            'word_count' => new external_value(PARAM_INT, 'word_count', VALUE_REQUIRED),
+            'words_per_minute' => new external_value(PARAM_INT, 'words_per_minute', VALUE_REQUIRED),
+            'backspace_percent' => new external_value(PARAM_FLOAT, 'backspace_percent', VALUE_REQUIRED),
+            'copy_behavior' => new external_value(PARAM_FLOAT, 'copy_behavior', VALUE_REQUIRED),
+            'score' => new external_value(PARAM_FLOAT, 'score', VALUE_DEFAULT, 0),
+            'quality_access' => new external_value(PARAM_INT, 'quality_access', VALUE_DEFAULT, 0),
+        ];
+    }
+    /**
+     * Returns parameters for store_user_writing method
+     *
+     * @return external_function_parameters Parameters definition for storing user writing data
+     */
+    public static function authory_tech_get_analytics_parameters() {
+        return new external_function_parameters([
+            'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_REQUIRED, 0, true),
+            'fileid' => new external_value(PARAM_INT, 'file id', VALUE_REQUIRED, 0, true),
+        ]);
+    }
+
+    /**
+     * Get analytics data for a user submission
+     *
+     * @param int $cmid Course module ID
+     * @param int $fileid File ID
+     * @return array Analytics data
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function authory_tech_get_analytics($cmid, $fileid) {
+        global $DB;
+
+        $vparams = self::validate_parameters(
+            self::authory_tech_get_analytics_parameters(),
+            [
+                'cmid' => $cmid,
+                'fileid' => $fileid,
+            ],
+        );
+
+        $context = context_module::instance($vparams['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:writingreport', $context);
+
+        $sql = "SELECT u.*, d.meta as effort_ratio, cf.userid, cf.uploaded
+                  FROM {tiny_authory_tech_user_writing} u
+             LEFT JOIN {tiny_authory_tech_writing_diff} d ON u.file_id = d.file_id
+             LEFT JOIN {tiny_authory_tech_files} cf ON u.file_id = cf.id
+                 WHERE u.file_id = :fileid";
+
+        $params = ['fileid' => $vparams['fileid']];
+        $rec = $DB->get_record_sql($sql, $params);
+        if (isset($rec->effort_ratio)) {
+            $rec->effort_ratio = round($rec->effort_ratio * 100, 2);
+        }
+
+        if ($rec) {
+            $firstfileid = self::get_user_first_file_id((int)($rec->userid ?? 0));
+            $rec->first_file = ($firstfileid !== null && $firstfileid == $rec->file_id) ? 1 : 0;
+            $rec->resubmit = constants::is_resubmitable($rec, $vparams['fileid']);
+            $rec->file_id = $vparams['fileid'];
+            $rec->cmid = $vparams['cmid'];
+        } else {
+            $rec = new stdClass();
+            $rec->resubmit = constants::is_resubmitable($rec, $vparams['fileid']);
+            $rec->file_id = $vparams['fileid'];
+            $rec->cmid = $vparams['cmid'];
+        }
+
+        if (empty($rec->total_time_seconds)) {
+            $durations = self::compute_duration_from_content($vparams['fileid'], $DB);
+            if ($durations['session'] > 0) {
+                $rec->total_time_seconds  = $durations['session'];
+                $rec->typing_time_seconds = $durations['typing'];
+            }
+        }
+
+        if (empty($rec->total_time_seconds)) {
+            $annotations = self::fetch_typeserver_annotations($vparams['fileid'], $DB);
+            if ($annotations !== null && isset($annotations->analytics->duration_ms)) {
+                $rec->total_time_seconds = intval($annotations->analytics->duration_ms / 1000);
+                if (isset($annotations->analytics->typing_duration_ms)) {
+                    $rec->typing_time_seconds = intval($annotations->analytics->typing_duration_ms / 1000);
+                }
+            }
+        }
+
+        return ['data' => json_encode($rec)];
+    }
+
+    /**
+     * Returns parameters for authory_tech_get_analytics method
+     *
+     * @return external_function_parameters Parameters definition for storing quality metrics data
+     */
+    public static function authory_tech_get_analytics_returns() {
+        return new external_single_structure([
+            'data' => new external_value(PARAM_TEXT, 'Record object'),
+        ]);
+    }
+
+    /**
+     * Returns parameters for store_user_writing method
+     *
+     * @return external_function_parameters Parameters definition for storing user writing data
+     */
+    public static function authory_tech_store_writing_differencs_parameters() {
+        return new external_function_parameters([
+            'fileid' => new external_value(PARAM_INT, 'file id', VALUE_REQUIRED, 0, true),
+            'reconstructed_text' => new external_value(PARAM_TEXT, 'original writing contents', VALUE_REQUIRED, "", true),
+            'submitted_text' => new external_value(PARAM_TEXT, 'writing html contents', VALUE_REQUIRED, "", true),
+            'meta' => new external_value(PARAM_TEXT, 'meta data', VALUE_DEFAULT, null, true),
+        ]);
+    }
+
+    /**
+     * Store writing differences between reconstructed and submitted text
+     *
+     * @param int $fileid File identifier
+     * @param string $reconstructedtext Original reconstructed text
+     * @param string $submittedtext Final submitted text
+     * @param string|null $meta Optional metadata
+     */
+    public static function authory_tech_store_writing_differencs($fileid, $reconstructedtext, $submittedtext, $meta = null) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::authory_tech_store_writing_differencs_parameters(),
+            [
+                'fileid' => $fileid,
+                'reconstructed_text' => $reconstructedtext,
+                'submitted_text' => $submittedtext,
+                'meta' => $meta,
+            ],
+        );
+
+        $context = context_system::instance(); // Assuming a system-wide capability check.
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:editsettings', $context);
+
+        $recordexists = $DB->record_exists('tiny_authory_tech_writing_diff', ['file_id' => $params['fileid']]);
+        $record = $recordexists
+            ? $DB->get_record('tiny_authory_tech_writing_diff', ['file_id' => $params['fileid']])
+            : new stdClass();
+        $record->file_id = $params['fileid'];
+        $record->reconstructed_text = $params['reconstructed_text'];
+        $record->submitted_text = $params['submitted_text'];
+        $record->meta = $params['meta']; // Add the meta field.
+
+        try {
+            if ($recordexists) {
+                $DB->update_record('tiny_authory_tech_writing_diff', $record);
+            } else {
+                $DB->insert_record('tiny_authory_tech_writing_diff', $record);
+            }
+
+            return [
+                'status' => get_string('success', 'tiny_authory_tech'),
+                'message' => get_string('data_save', 'tiny_authory_tech'),
+            ];
+        } catch (moodle_exception $e) {
+            // Handle the exception.
+            return [
+                'status' => get_string('failed', 'tiny_authory_tech'),
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Returns parameters for store_user_writing method
+     *
+     * @return external_function_parameters Parameters definition for storing user writing data
+     */
+    public static function authory_tech_store_writing_differencs_returns() {
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'Status message'),
+            'message' => new external_value(PARAM_TEXT, 'Message'),
+        ]);
+    }
+
+
+    /**
+     * Returns parameters for authory_tech_get_writing_diff method
+     *
+     * @return external_single_structure Returns structure containing status and message
+     */
+    public static function authory_tech_get_writing_differencs_parameters() {
+        return new external_function_parameters([
+            'fileid' => new external_value(PARAM_INT, 'file id', VALUE_REQUIRED, 0, true),
+        ]);
+    }
+
+    /**
+     * Get writing differences for a user submission
+     *
+     * @param int $fileid File identifier
+     * @return array Writing differences data
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     */
+    public static function authory_tech_get_writing_differencs($fileid) {
+        global $DB;
+
+        $vparams = self::validate_parameters(
+            self::authory_tech_get_writing_differencs_parameters(),
+            [
+                'fileid' => $fileid,
+            ],
+        );
+
+        $filename = $DB->get_record(
+            'tiny_authory_tech_files',
+            ['id' => $vparams['fileid']],
+            'filename',
+        );
+        $parts = explode('_', $filename->filename);
+        $cmid = $parts[2];
+
+        $context = context_module::instance($cmid);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:writingreport", $context);
+
+        $sql = "SELECT WD.*, CF.cmid, CF.resourceid, CF.modulename, COUNT(CC.id) AS commentscount, CF.userid, CF.questionid
+                  FROM {tiny_authory_tech_writing_diff} WD
+                  JOIN {tiny_authory_tech_files} CF ON CF.id = WD.file_id
+             LEFT JOIN {tiny_authory_tech_comments} CC ON CC.resourceid = CF.resourceid
+                                                AND CC.modulename = CF.modulename
+                                                AND CC.cmid = CF.cmid
+                                                AND CC.userid = CF.userid
+                                                AND CC.questionid = CF.questionid
+                 WHERE WD.file_id = :fileid
+              GROUP BY WD.id, CF.userid, CF.questionid, CF.cmid, CF.resourceid, CF.modulename";
+
+        $params = ['fileid' => $vparams['fileid']];
+        $data = $DB->get_record_sql($sql, $params);
+        if ($data) {
+            $comments = $DB->get_records(
+                'tiny_authory_tech_comments',
+                [
+                    'resourceid' => $data->resourceid,
+                    'modulename' => $data->modulename,
+                    'cmid' => $data->cmid,
+                    'userid' => $data->userid,
+                    'questionid' => $data->questionid,
+                ],
+            );
+            $data->comments = $comments;
+        }
+
+        return ['data' => json_encode($data)];
+    }
+
+    /**
+     * Returns description of method result value for authory_tech_get_writing_differencs
+     *
+     * @return external_single_structure Returns structure containing content data
+     */
+    public static function authory_tech_get_writing_differencs_returns() {
+        return new external_single_structure([
+            'data' => new external_value(PARAM_TEXT, 'content data'),
+        ]);
+    }
+
+    /**
+     * Returns parameters for generate_webtoken method
+     *
+     * @return external_function_parameters Parameters definition for generating web token
+     */
+    public static function generate_webtoken_parameters() {
+        return new external_function_parameters([]);
+    }
+
+    /**
+     * Generates a web token for authentication
+     *
+     * @return array Array containing the generated token
+     */
+    public static function generate_webtoken() {
+        $token = tiny_authory_tech_create_token_for_user();
+        if ($token) {
+            set_config('authory_tech_token', $token, 'tiny_authory_tech');
+            unset_config('ApiSyncInterval', 'tiny_authory_tech');
+        }
+        return ['token' => $token];
+    }
+
+    /**
+     * Returns description of method result value for generate_webtoken
+     *
+     * @return external_single_structure Returns structure containing the generated token
+     */
+    public static function generate_webtoken_returns() {
+        return new external_single_structure([
+            'token' => new external_value(PARAM_TEXT, 'token'),
+        ]);
+    }
+
+    /**
+     * Returns parameters for write_local_to_json method
+     *
+     * @return external_function_parameters Parameters definition for writing local data to JSON
+     */
+    public static function write_local_to_json_parameters() {
+        return new external_function_parameters(
+            [
+                'resourceId' => new external_value(PARAM_INT, 'resourceId', VALUE_DEFAULT, 0),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+                'modulename' => new external_value(PARAM_TEXT, 'Modulename', VALUE_DEFAULT, ""),
+                'editorid' => new external_value(PARAM_TEXT, 'editorid', VALUE_DEFAULT, ""),
+                'json_data' => new external_value(PARAM_RAW, 'JSON Data', VALUE_DEFAULT, ""),
+                'originalText' => new external_value(PARAM_RAW, 'original submission Text', VALUE_DEFAULT, ""),
+            ],
+        );
+    }
+
+    /**
+     * Write delta event array to database
+     *
+     * @param int $resourceid Resource identifier
+     * @param int $cmid Course module ID
+     * @param string $modulename Module name
+     * @param string|null $editorid Editor identifier
+     * @param string $jsondata JSON-encoded array of delta events ({t, d, meta})
+     * @param string $originaltext Original submission text
+     * @return string name of the saved record.
+     */
+    public static function write_local_to_json(
+        $resourceid = 0,
+        $cmid = 0,
+        $modulename = 'quiz',
+        $editorid = null,
+        $jsondata = [],
+        $originaltext = ""
+    ) {
+        global $USER, $DB, $CFG;
+
+        $params = self::validate_parameters(
+            self::write_local_to_json_parameters(),
+            [
+                'resourceId'   => $resourceid,
+                'cmid'         => $cmid,
+                'modulename'   => $modulename,
+                'editorid'     => $editorid,
+                'json_data'    => $jsondata,
+                'originalText' => $originaltext,
+            ],
+        );
+
+        if (
+            $params['resourceId'] == 0 && $params['modulename'] !== 'forum' && $params['modulename'] !== 'oublog' &&
+            $params['modulename'] !== 'pdfannotator'
+        ) {
+            $params['resourceId'] = $params['cmid'];
+            // For Quiz and Assignment there is no resourceid that's why cmid is resourceid.
+        }
+
+        $courseid = 0;
+
+        $userdata = [];
+        if ($params['cmid']) {
+            $cm = $DB->get_record('course_modules', ['id' => $params['cmid']]);
+            $courseid = $cm->course;
+            $userdata["courseId"] = $courseid;
+            $params['courseId'] = $courseid;
+
+            // Get course context.
+            $context = context_module::instance($params['cmid']);
+            self::validate_context($context);
+            require_capability('tiny/authory_tech:write', $context);
+
+            // Enforce plan limits.
+            if (constants::is_trial_expired()) {
+                throw new moodle_exception('trial_expired', 'tiny_authory_tech');
+            }
+            if (!constants::within_course_limit($courseid)) {
+                throw new moodle_exception('course_limit_reached', 'tiny_authory_tech');
+            }
+            if (!constants::within_student_limit($courseid)) {
+                throw new moodle_exception('student_limit_reached', 'tiny_authory_tech');
+            }
+        } else {
+            $userdata["courseId"] = 0;
+        }
+
+        $userdata["clientId"] = $CFG->wwwroot;
+        $userdata["personId"] = $USER->id;
+        $questionid = constants::get_question_id($params['editorid']);
+
+        $fname = $USER->id . '_' . $params['resourceId'] . '_' . $params['cmid'] . '_attempt' . '.json';
+        if ($questionid) {
+            $fname = $USER->id . '_' . $params['resourceId'] . '_' . $params['cmid'] . '_' . $questionid . '_attempt' . '.json';
+        }
+
+        $table = 'tiny_authory_tech_files';
+        $inp = '';
+
+        if ($questionid) {
+            $inp = $DB->get_record($table, [
+                'cmid' => $params['cmid'],
+                'modulename' => $params['modulename'],
+                'resourceid' => $params['resourceId'],
+                'userid' => $USER->id,
+                'questionid' => $questionid,
+            ]);
+        } else {
+            $inp = $DB->get_record($table, [
+                'cmid' => $params['cmid'],
+                'modulename' => $params['modulename'],
+                'resourceid' => $params['resourceId'],
+                'userid' => $USER->id,
+            ]);
+        }
+        $temparray = [];
+
+        // Auto save function call.
+        $params['questionid'] = $questionid ?? 0;
+        constants::authory_tech_auto_save($params);
+
+        // Delta events use the canonical format {t, d, meta} — validate and strip unknowns.
+        $incoming = json_decode($params['json_data'], true) ?: [];
+        $normalized = array_map(static function ($ev) {
+            return [
+                't'    => (int)($ev['t'] ?? 0),
+                'd'    => $ev['d'] ?? [],
+                'meta' => $ev['meta'] ?? 'keystroke',
+            ];
+        }, $incoming);
+
+        if ($inp) {
+            $temparray = json_decode($inp->content, true) ?: [];
+            foreach ($normalized as $value) {
+                $temparray[] = $value;
+            }
+            $inp->content = json_encode($temparray);
+            $inp->original_content = $params['originalText'];
+            $inp->uploaded = 0;
+            $DB->update_record($table, $inp);
+            return 'true';
+        } else {
+            $dataobj = new stdClass();
+            $dataobj->userid = $USER->id;
+            $dataobj->resourceid = $params['resourceId'];
+            $dataobj->cmid = $params['cmid'];
+            $dataobj->modulename = $params['modulename'];
+            $dataobj->courseid = $courseid;
+            $dataobj->timemodified = time();
+            $dataobj->filename = $fname;
+            $dataobj->content = json_encode($normalized);
+            $dataobj->original_content = $params['originalText'];
+            $dataobj->questionid = $questionid ?? 0;
+            $dataobj->uploaded = 0;
+            $DB->insert_record($table, $dataobj);
+            return $fname;
+        }
+    }
+
+     /**
+      * Method write_local_to_json_returns
+      * @return external_value Returns the filename as a text parameter
+      *
+      */
+    public static function write_local_to_json_returns() {
+        return new external_value(PARAM_TEXT, 'filename');
+    }
+
+    /**
+     * Returns the parameters for the authory_tech_get_config function
+     *
+     * @return external_function_parameters Parameters definition for the external function
+     */
+    public static function authory_tech_get_config_parameters() {
+        return new external_function_parameters([
+            'courseid' => new external_value(PARAM_INT, 'course id', VALUE_DEFAULT, 0),
+            'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+        ]);
+    }
+
+    /**
+     * Get authory_tech configuration settings for a course and course module
+     *
+     * @param int $courseid The course ID to get config for
+     * @param int $cmid The course module ID to get config for
+     * @return array Array containing config status and sync interval
+     */
+    public static function authory_tech_get_config($courseid, $cmid) {
+        global $PAGE, $USER, $CFG;
+        require_once($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/lib.php');
+        $params = self::validate_parameters(
+            self::authory_tech_get_config_parameters(),
+            [
+                'courseid' => $courseid,
+                'cmid' => $cmid,
+            ],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:writingreport", $context);
+
+        $config       = tiny_authory_tech_status($params['courseid']);
+        $syncinterval = get_config('tiny_authory_tech', "syncinterval");
+        $cm           = get_coursemodule_from_id('', $params['cmid'], $params['courseid'], false, MUST_EXIST);
+        $rubrics      = constants::get_rubrics("mod_{$cm->modname}", $context, $cm->modname);
+
+        $submissiondata = new stdClass();
+        if ($cm->modname === 'assign') {
+            $assign     = new assign($context, null, null);
+            $submission = $assign->get_user_submission($USER->id, false);
+            $grade      = $assign->get_user_grade($USER->id, false);
+
+            $submissiondata->current = $submission;
+            $submissiondata->grade = $grade;
+        }
+        $quizdata = new stdClass();
+        if ($cm->modname === 'quiz') {
+            $quiz = quiz_settings::create_for_cmid($params['cmid'], $USER->id);
+            $quiz = $quiz->get_quiz();
+            $quizdata->intro = base64_encode($quiz->intro);
+            $quizdata->open = $quiz->timeopen;
+            $quizdata->close = $quiz->timeclose;
+        }
+        $pastesetting = constants::get_paste_setting($params['courseid'], $params['cmid']);
+
+        $plan = constants::get_plan();
+        $planinfo = [
+            'plan'              => $plan,
+            'trial_expired'     => constants::is_trial_expired(),
+            'trial_days_remaining' => constants::get_trial_days_remaining(),
+            'student_limit'     => get_config('tiny_authory_tech', 'student_limit'),
+            'course_limit'      => get_config('tiny_authory_tech', 'course_limit'),
+            'teacher_limit'     => get_config('tiny_authory_tech', 'teacher_limit'),
+        ];
+
+        $data    = [
+            'status'        => $config,
+            'sync_interval' => $syncinterval,
+            'userid'        => $USER->id,
+            'apikey_status' => constants::has_api_key(),
+            'mod_state'     => constants::is_active(),
+            'plugins'       => json_encode(constants::NAMES),
+            'rubrics'       => json_encode($rubrics),
+            'submission'    => json_encode($submissiondata),
+            'quizinfo'      => json_encode($quizdata),
+            'pastesetting'  => $pastesetting,
+            'plan_info'     => json_encode($planinfo),
+        ];
+        return $data;
+    }
+
+    /**
+     * Returns description of method result value for authory_tech_get_config
+     *
+     * @return external_single_structure Returns a structure containing config status and sync interval
+     */
+    public static function authory_tech_get_config_returns() {
+        return new external_single_structure([
+            'status' => new external_value(PARAM_BOOL, 'config'),
+            'sync_interval' => new external_value(PARAM_INT, 'Data Sync interval'),
+            'userid' => new external_value(PARAM_INT, 'userid'),
+            'apikey_status' => new external_value(PARAM_BOOL, 'api key status'),
+            'mod_state' => new external_value(PARAM_BOOL, "Authory.tech Module wise active/deactive state"),
+            'plugins' => new external_value(PARAM_TEXT, "Supported Plugins Names"),
+            'rubrics' => new external_value(PARAM_TEXT, "Assignment or forums rubrics"),
+            'submission' => new external_value(PARAM_TEXT, "Submission status"),
+            'quizinfo' => new external_value(PARAM_TEXT, 'quiz info'),
+            'pastesetting'  => new external_value(PARAM_TEXT, 'Paste setting'),
+            'plan_info' => new external_value(PARAM_TEXT, 'JSON: plan name, trial days remaining, limit state'),
+        ]);
+    }
+
+    /**
+     * Returns the parameters for the get_lesson_submission_data function
+     *
+     * @return external_function_parameters The parameters structure containing:
+     *         - id (int): Optional lesson ID parameter
+     *         - modulename (string): Optional module name parameter
+     *         - cmid (int): Optional course module ID parameter
+     */
+    public static function get_lesson_submission_data_parameters() {
+        return new external_function_parameters(
+            [
+                    'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, null),
+                    'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                    'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+                ],
+        );
+    }
+
+    /**
+     * Gets submission data for a lesson
+     *
+     * @param int $id The lesson ID
+     * @param string $modulename The name of the module
+     * @param int $cmid The course module ID
+     * @return string JSON encoded submission data
+     */
+    public static function get_lesson_submission_data($id, $modulename, $cmid) {
+        $params = self::validate_parameters(
+            self::get_lesson_submission_data_parameters(),
+            [
+                    'id' => $id,
+                    'modulename' => $modulename,
+                    'cmid' => $cmid,
+                ],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:view", $context);
+
+        $rec = tiny_authory_tech_get_user_submissions_data($params['id'], $params['modulename'], $params['cmid']);
+
+        return json_encode($rec);
+    }
+
+    /**
+     * Returns description of get_lesson_submission_data return value
+     *
+     * @return external_value Returns a text parameter containing lesson submission data
+     */
+    public static function get_lesson_submission_data_returns() {
+        return new external_value(PARAM_TEXT, 'Lesson data');
+    }
+
+    /**
+     * Returns the parameters for the disable_authory_tech function
+     *
+     * @return external_function_parameters The parameters structure containing:
+     *         - disable (bool): Optional boolean parameter to disable authory_tech
+     */
+    public static function disable_authory_tech_parameters() {
+        return new external_function_parameters(
+            [
+                'disable' => new external_value(PARAM_BOOL, 'status', VALUE_DEFAULT, null),
+            ]
+        );
+    }
+    /**
+     * Disables authory_tech functionality for all courses
+     *
+     * @param bool $disable Whether to disable authory_tech
+     * @return bool True if authory_tech was successfully disabled for all courses
+     */
+    public static function disable_authory_tech($disable) {
+
+        try {
+            $courses = get_courses();
+            $value = !$disable;
+            foreach ($courses as $course) {
+                set_config("authory_tech-{$course->id}", $value, 'tiny_authory_tech');
+            }
+            return true;
+        } catch (moodle_exception $e) {
+            // Log error and return false if config update fails.
+            debugging('Error disabling authory_tech: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return false;
+        }
+    }
+    /**
+     * Returns description of disable_authory_tech return value
+     *
+     * @return external_value Returns a boolean parameter indicating if authory_tech was disabled
+     */
+    public static function disable_authory_tech_returns() {
+        return new external_value(PARAM_BOOL, 'authory_tech disable message');
+    }
+
+    /**
+     * Returns the parameters for the get_oublog_submission_data function
+     *
+     * @return external_function_parameters The parameters structure containing:
+     *         - id (int): Optional lesson ID parameter
+     *         - resourceid (int): Optional resource ID parameter
+     *         - modulename (string): Optional module name parameter
+     *         - cmid (int): Optional course module ID parameter
+     */
+    public static function get_oublog_submission_data_parameters() {
+        return new external_function_parameters(
+            [
+                    'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, 0),
+                    'resourceid' => new external_value(PARAM_INT, 'post id', VALUE_DEFAULT, 0),
+                    'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                    'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+                ],
+        );
+    }
+
+    /**
+     * Gets submission data for a oublog
+     *
+     * @param int $id The oublog ID
+     * @param int $resourceid The post ID
+     * @param string $modulename The name of the module
+     * @param int $cmid The course module ID
+     * @return string JSON encoded submission data
+     */
+    public static function get_oublog_submission_data($id, $resourceid, $modulename, $cmid) {
+            $params = self::validate_parameters(
+                self::get_oublog_submission_data_parameters(),
+                [
+                        'id' => $id,
+                        'resourceid' => $resourceid,
+                        'modulename' => $modulename,
+                        'cmid' => $cmid,
+                    ],
+            );
+
+            $context = context_module::instance($params['cmid']);
+            self::validate_context($context);
+            require_capability("tiny/authory_tech:view", $context);
+
+            $rec = tiny_authory_tech_get_user_submissions_data(
+                $params['id'],
+                $params['modulename'],
+                $params['cmid'],
+                0,
+                $params['resourceid']
+            );
+
+            return json_encode($rec);
+    }
+
+    /**
+     * Returns description of get_lesson_submission_data return value
+     *
+     * @return external_value Returns a text parameter containing lesson submission data
+     */
+    public static function get_oublog_submission_data_returns() {
+        return new external_value(PARAM_TEXT, 'oublog data');
+    }
+
+
+    /**
+     * Returns the parameters for the resubmit_payload_data function
+     *
+     * @return external_function_parameters The parameters structure containing:
+     *         - file_id (int): Optional file ID parameter
+     *         - cmid (int): Optional course module ID parameter
+     */
+    public static function resubmit_payload_data_parameters() {
+        return new external_function_parameters(
+            [
+                'file_id' => new external_value(PARAM_INT, 'FILE ID', VALUE_DEFAULT, 0),
+                'cmid' => new external_value(PARAM_INT, 'CMID ID', VALUE_DEFAULT, 0),
+            ]
+        );
+    }
+
+    /**
+     * Resubmits payload data for a file
+     *
+     * @param int $fileid The ID of the file to resubmit
+     * @param int $cmid The course module ID
+     * @return bool True if resubmission was successful, false otherwise
+     */
+    public static function resubmit_payload_data($fileid, $cmid) {
+        global $DB;
+
+        $params = self::validate_parameters(
+            self::resubmit_payload_data_parameters(),
+            [
+                'file_id' => $fileid,
+                'cmid' => $cmid,
+            ]
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:write", $context);
+
+        try {
+            $record = new stdClass();
+            $record->id = $params['file_id'];
+            $record->uploaded = 0;
+            return $DB->update_record('tiny_authory_tech_files', $record);
+        } catch (dml_exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns description of resubmit_payload_data return value
+     *
+     * @return external_value Returns a boolean parameter indicating if resubmission was successful
+     */
+    public static function resubmit_payload_data_returns() {
+        return new external_value(PARAM_BOOL, 'resubmit message');
+    }
+
+    /**
+     * Returns the parameters definition for get_autosave_content external function.
+     *
+     * @return external_function_parameters Parameters definition for getting autosave content
+     */
+    public static function get_autosave_content_parameters() {
+        return new external_function_parameters([
+                'id' => new external_value(PARAM_INT, 'id', VALUE_DEFAULT, null),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, null),
+                'editorid' => new external_value(PARAM_TEXT, 'editor id', VALUE_DEFAULT, null),
+                'userid' => new external_value(PARAM_INT, 'userid', VALUE_DEFAULT, null),
+                'courseid' => new external_value(PARAM_INT, 'courseid', VALUE_DEFAULT, null),
+            ]);
+    }
+
+    /**
+     * Gets autosaved content for a specific user and resource
+     *
+     * @param int $id The resource ID
+     * @param string $modulename The name of the module (e.g. 'quiz', 'assign')
+     * @param int $cmid The course module ID
+     * @param string $editorid The editor ID
+     * @param int $userid The user ID (defaults to current user)
+     * @param int $courseid The course ID
+     * @return string JSON encoded array containing usercomment and timemodified fields from tiny_authory_tech_comments records
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     * @throws required_capability_exception
+     */
+    public static function get_autosave_content($id, $modulename, $cmid, $editorid = "", $userid = 0, $courseid = 0) {
+        global $DB, $USER;
+
+        $params = self::validate_parameters(
+            self::get_autosave_content_parameters(),
+            [
+                'id' => $id,
+                'modulename' => $modulename,
+                'cmid' => $cmid,
+                'editorid' => $editorid,
+                'userid' => $userid,
+                'courseid' => $courseid,
+            ],
+        );
+
+        if (empty($params['userid'])) {
+            $params['userid'] = $USER->id;
+        }
+
+        if (empty($params['questionid'])) {
+            $params['questionid'] = 0;
+        }
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:writingreport", $context);
+
+        $questionid = constants::get_question_id($params['editorid']);
+        if ($questionid) {
+            $record = $DB->get_records('tiny_authory_tech_comments', [
+                'cmid' => $params['cmid'],
+                'modulename' => $params['modulename'],
+                'resourceid' => $params['id'],
+                'userid' => $params['userid'],
+                'questionid' => $questionid,
+                'courseid' => $params['courseid'],
+            ], 'id desc', 'usercomment, timemodified');
+        } else {
+            $record = $DB->get_records('tiny_authory_tech_comments', [
+                'cmid' => $params['cmid'],
+                'modulename' => $params['modulename'],
+                'resourceid' => $params['id'],
+                'userid' => $params['userid'],
+                'courseid' => $params['courseid'],
+            ], 'id desc', 'usercomment, timemodified');
+        }
+
+        if ($record) {
+            return json_encode(array_values($record));
+        } else {
+            return json_encode([]);
+        }
+    }
+
+    /**
+     * Returns description of get_autosave_content return value
+     *
+     * @return external_value Returns a text parameter containing the autosaved content
+     */
+    public static function get_autosave_content_returns() {
+        return new external_value(PARAM_TEXT, 'autosave content');
+    }
+
+
+    /**
+     * Returns the parameters definition for update_pdf_annote_id external function.
+     *
+     * @return external_function_parameters Parameters definition containing:
+     *         - resourceid (int): Optional ID parameter
+     *         - modulename (string): Optional module name parameter
+     *         - cmid (int): Optional course module ID parameter
+     *         - userid (int): Optional user ID parameter
+     *         - courseid (int): Optional course ID parameter
+     */
+    public static function update_pdf_annote_id_parameters() {
+        return new external_function_parameters([
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+                'userid' => new external_value(PARAM_INT, 'userid', VALUE_DEFAULT, 0),
+                'courseid' => new external_value(PARAM_INT, 'courseid', VALUE_DEFAULT, 0),
+                'modulename' => new external_value(PARAM_TEXT, 'modulename', VALUE_DEFAULT, ''),
+                'resourceid' => new external_value(PARAM_INT, 'pdf annote comment id', VALUE_DEFAULT, 0),
+            ]);
+    }
+
+    /**
+     * Updates the PDF annotation ID for a comment record
+     *
+     * @param int $cmid The course module ID
+     * @param int $userid The user ID (defaults to current user)
+     * @param int $courseid The course ID
+     * @param string $modulename The name of the module
+     * @param int $resourceid The PDF annotation comment ID
+     * @return bool
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     * @throws moodle_exception
+     * @throws required_capability_exception
+     */
+    public static function update_pdf_annote_id($cmid, $userid, $courseid, $modulename, $resourceid) {
+        $params = self::validate_parameters(
+            self::update_pdf_annote_id_parameters(),
+            [
+                'cmid'       => $cmid,
+                'userid'     => $userid,
+                'courseid'   => $courseid,
+                'modulename' => $modulename,
+                'resourceid' => $resourceid,
+            ],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability("tiny/authory_tech:writingreport", $context);
+
+        helper::update_resource_id($params);
+        return true;
+    }
+
+    /**
+     * Returns description of update_pdf_annote_id return value
+     *
+     * @return external_value Returns a boolean parameter indicating if the update was successful
+     */
+    public static function update_pdf_annote_id_returns() {
+        return new external_value(PARAM_BOOL, 'update pdf annote id');
+    }
+
+    /**
+     * Parameters for get_student_stats
+     *
+     * @return external_function_parameters
+     */
+    public static function get_student_stats_parameters() {
+        return new external_function_parameters(
+            [
+                'resource_id' => new external_value(PARAM_INT, 'File record ID sent to type server as resource_id'),
+                'userid'      => new external_value(PARAM_INT, 'Student user ID (person_id)'),
+            ]
+        );
+    }
+
+    /**
+     * Proxy GET /assignments/:cmid/students/:userid/stats to the type server.
+     * Auth uses HMAC-SHA256(secret, ws_token:expires) to generate X-Teacher-Token.
+     *
+     * @param int $resourceid Course module ID
+     * @param int $userid Student user ID
+     * @return string JSON response from type server, or error JSON
+     */
+    public static function get_student_stats($resourceid, $userid) {
+        global $CFG, $DB;
+
+        require_once("$CFG->libdir/filelib.php");
+
+        $params = self::validate_parameters(
+            self::get_student_stats_parameters(),
+            ['resource_id' => $resourceid, 'userid' => $userid]
+        );
+
+        $filerecord = $DB->get_record('tiny_authory_tech_files', ['id' => $params['resource_id']], 'id, cmid');
+        $context = $filerecord ? context_module::instance($filerecord->cmid) : context_system::instance();
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $secret    = get_config('tiny_authory_tech', 'secretkey');
+        $serverurl = get_config('tiny_authory_tech', 'python_server');
+
+        if (empty($secret) || empty($serverurl)) {
+            return json_encode(['error' => 'Plugin not configured']);
+        }
+
+        // Resolve ws_token the same way as the cron task.
+        $wstoken = get_config('tiny_authory_tech', 'authory_tech_token');
+        if (empty($wstoken)) {
+            $service = $DB->get_record('external_services', ['shortname' => 'authory_tech_json_service']);
+            if ($service) {
+                $adminuser = get_admin();
+                $dbtoken   = $DB->get_record(
+                    'external_tokens',
+                    ['userid' => $adminuser->id, 'externalserviceid' => $service->id],
+                    '*',
+                    IGNORE_MULTIPLE
+                );
+                $wstoken = $dbtoken ? $dbtoken->token : '';
+            }
+        }
+
+        if (empty($wstoken)) {
+            return json_encode(['error' => 'No web service token configured']);
+        }
+
+        // Build HMAC teacher token: signature:expires.
+        $expires      = time() + 600;
+        $sig          = hash_hmac('sha256', $wstoken . ':' . $expires, $secret);
+        $teachertoken = $sig . ':' . $expires;
+
+        $url = rtrim($serverurl, '/') . '/assignments/' . $filerecord->cmid . '/students/' . $params['userid'] . '/stats';
+
+        $curl    = new curl();
+        $options = [
+            'CURLOPT_RETURNTRANSFER' => true,
+            'CURLOPT_CONNECTTIMEOUT' => 5,
+            'CURLOPT_TIMEOUT'        => 10,
+            'CURLOPT_HTTPHEADER'     => [
+                'X-Teacher-Token: ' . $teachertoken,
+                'X-Ws-Token: ' . $wstoken,
+                'Accept: application/json',
+            ],
+        ];
+
+        $result = $curl->get($url, [], $options);
+
+        if ($result === false) {
+            return json_encode(['error' => $curl->error]);
+        }
+
+        // Merge submission text and filename from Moodle DB into the type-server response.
+        $filerecordextra = $DB->get_record(
+            'tiny_authory_tech_files',
+            ['id' => $params['resource_id']],
+            'original_content, filename, content',
+            IGNORE_MISSING
+        );
+        $decoded = json_decode($result, true);
+        if (is_array($decoded)) {
+            $decoded['submission_text'] = $filerecordextra->original_content ?? '';
+            $decoded['filename']        = $filerecordextra->filename ?? '';
+            $durations = self::compute_duration_from_content($params['resource_id'], $DB);
+            if (empty($decoded['duration_seconds']) && $durations['session'] > 0) {
+                $decoded['duration_seconds'] = $durations['session'];
+            }
+            if (empty($decoded['typing_duration_seconds']) && $durations['typing'] > 0) {
+                $decoded['typing_duration_seconds'] = $durations['typing'];
+            }
+            // Always use local content as source of truth for paste texts (matches replay exactly).
+            $localpastes = self::compute_pastes_from_content($params['resource_id'], $DB);
+            $decoded['pasted_texts'] = $localpastes;
+            return json_encode($decoded);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Returns description of get_student_stats return value
+     *
+     * @return external_value
+     */
+    public static function get_student_stats_returns() {
+        return new external_value(PARAM_RAW, 'Student stats JSON from type server');
+    }
+
+    /**
+     * Parameters for get_assign_overview_stats
+     *
+     * @return external_function_parameters
+     */
+    public static function get_assign_overview_stats_parameters() {
+        return new external_function_parameters([
+            'cmid' => new external_value(PARAM_INT, 'Course module ID'),
+        ]);
+    }
+
+    /**
+     * Proxy GET /assignments/:cmid/stats to the type server.
+     * Returns class-level aggregate and per-student WPM/duration for the overview tab.
+     *
+     * @param int $cmid Course module ID
+     * @return string JSON from type server, or error JSON
+     */
+    public static function get_assign_overview_stats($cmid) {
+        global $CFG, $DB;
+
+        require_once("$CFG->libdir/filelib.php");
+
+        $params = self::validate_parameters(
+            self::get_assign_overview_stats_parameters(),
+            ['cmid' => $cmid]
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:view', $context);
+
+        $secret    = get_config('tiny_authory_tech', 'secretkey');
+        $serverurl = get_config('tiny_authory_tech', 'python_server');
+
+        if (empty($secret) || empty($serverurl)) {
+            return json_encode(['error' => 'Plugin not configured']);
+        }
+
+        $wstoken = get_config('tiny_authory_tech', 'authory_tech_token');
+        if (empty($wstoken)) {
+            $service = $DB->get_record('external_services', ['shortname' => 'authory_tech_json_service']);
+            if ($service) {
+                $adminuser = get_admin();
+                $dbtoken   = $DB->get_record(
+                    'external_tokens',
+                    ['userid' => $adminuser->id, 'externalserviceid' => $service->id],
+                    '*',
+                    IGNORE_MULTIPLE
+                );
+                $wstoken = $dbtoken ? $dbtoken->token : '';
+            }
+        }
+
+        if (empty($wstoken)) {
+            return json_encode(['error' => 'No web service token configured']);
+        }
+
+        $expires      = time() + 600;
+        $sig          = hash_hmac('sha256', $wstoken . ':' . $expires, $secret);
+        $teachertoken = $sig . ':' . $expires;
+
+        $url = rtrim($serverurl, '/') . '/assignments/' . $params['cmid'] . '/stats';
+
+        $curl    = new curl();
+        $options = [
+            'CURLOPT_RETURNTRANSFER' => true,
+            'CURLOPT_CONNECTTIMEOUT' => 5,
+            'CURLOPT_TIMEOUT'        => 10,
+            'CURLOPT_HTTPHEADER'     => [
+                'X-Teacher-Token: ' . $teachertoken,
+                'X-Ws-Token: ' . $wstoken,
+                'Accept: application/json',
+            ],
+        ];
+
+        $result = $curl->get($url, [], $options);
+
+        // Fall back to local content computation when typeserver has no data.
+        $decoded = ($result !== false) ? json_decode($result, true) : null;
+        if (!is_array($decoded) || !empty($decoded['error']) || empty($decoded['students'])) {
+            return self::compute_overview_stats_from_content($params['cmid'], $DB);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Compute assignment overview stats from tiny_authory_tech_files.content.
+     * Used as fallback when the typeserver has no TimescaleDB data yet.
+     *
+     * @param int $cmid Course module ID
+     * @param object $db Moodle $DB global
+     * @return string JSON matching the typeserver /assignments/:cmid/stats shape
+     */
+    private static function compute_overview_stats_from_content($cmid, $db): string {
+        $sql = 'SELECT id, userid, content
+                  FROM {tiny_authory_tech_files}
+                 WHERE cmid = :cmid AND content IS NOT NULL AND content != :empty
+              ORDER BY userid ASC';
+        $files = $db->get_records_sql($sql, ['cmid' => $cmid, 'empty' => '']);
+
+        $students = [];
+        foreach ($files as $file) {
+            $events = json_decode($file->content, true);
+            if (!is_array($events) || count($events) < 2) {
+                continue;
+            }
+            $timestamps = array_values(array_filter(array_column($events, 't'), static fn($t) => $t > 0));
+            if (count($timestamps) < 2) {
+                continue;
+            }
+            sort($timestamps);
+            $sessionseconds = (max($timestamps) - min($timestamps)) / 1000;
+            if ($sessionseconds < 1) {
+                continue;
+            }
+            $charsinserted = 0;
+            foreach ($events as $ev) {
+                foreach (($ev['d'] ?? []) as $op) {
+                    if (!empty($op['insert'])) {
+                        $charsinserted += mb_strlen($op['insert']);
+                    }
+                }
+            }
+            $wpm = $charsinserted / 5.0 / ($sessionseconds / 60.0);
+            $students[(int)$file->userid] = [
+                'person_id'        => (int)$file->userid,
+                'avg_wpm'          => round($wpm, 2),
+                'duration_seconds' => round($sessionseconds, 1),
+                'wpm_diff'         => '+0.00',
+            ];
+        }
+
+        if (empty($students)) {
+            return json_encode(['error' => 'No data available']);
+        }
+
+        $students = array_values($students);
+        $count = count($students);
+        $classavgwpm      = array_sum(array_column($students, 'avg_wpm')) / $count;
+        $classavgduration = array_sum(array_column($students, 'duration_seconds')) / $count;
+
+        foreach ($students as &$s) {
+            $s['wpm_diff'] = sprintf('%+.2f', round($s['avg_wpm'] - $classavgwpm, 2));
+        }
+        unset($s);
+
+        return json_encode([
+            'cmid'                       => (int)$cmid,
+            'class_avg_wpm'              => round($classavgwpm, 2),
+            'class_avg_duration_seconds' => round($classavgduration, 1),
+            'students'                   => $students,
+        ]);
+    }
+
+    /**
+     * Returns description of get_assign_overview_stats return value
+     *
+     * @return external_value
+     */
+    public static function get_assign_overview_stats_returns() {
+        return new external_value(PARAM_RAW, 'Assignment overview stats JSON from type server');
+    }
+
+    /**
+     * Parameters for authory_tech_get_replay_annotations
+     *
+     * @return external_function_parameters
+     */
+    public static function authory_tech_get_replay_annotations_parameters() {
+        return new external_function_parameters([
+            'filepath' => new external_value(PARAM_TEXT, 'filepath (userid_resourceid_cmid)'),
+        ]);
+    }
+
+    /**
+     * Proxy GET /sessions/:resource_id/replay-annotations to the type server.
+     * Returns pre-computed AI annotations and session analytics.
+     *
+     * @param string $filepath Filepath in userid_resourceid_cmid format
+     * @return string JSON response from type server, or error JSON
+     * @throws dml_exception
+     * @throws invalid_parameter_exception
+     */
+    public static function authory_tech_get_replay_annotations($filepath) {
+        global $CFG, $DB;
+
+        $params = self::validate_parameters(
+            self::authory_tech_get_replay_annotations_parameters(),
+            ['filepath' => $filepath]
+        );
+
+        $parts = explode('_', $params['filepath']);
+        $cmid  = $parts[2];
+
+        $context = context_module::instance($cmid);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:writingreport', $context);
+
+        // Look up the actual file record id — this is what the typeserver stores as resource_id.
+        $filerecord = $DB->get_record('tiny_authory_tech_files', ['filename' => $params['filepath']], 'id');
+        if (!$filerecord) {
+            return json_encode(['error' => 'File record not found']);
+        }
+
+        $secret    = get_config('tiny_authory_tech', 'secretkey');
+        $serverurl = get_config('tiny_authory_tech', 'python_server');
+
+        if (empty($secret) || empty($serverurl)) {
+            return json_encode(['error' => 'Plugin not configured']);
+        }
+
+        $wstoken = get_config('tiny_authory_tech', 'authory_tech_token');
+        if (empty($wstoken)) {
+            $service = $DB->get_record('external_services', ['shortname' => 'authory_tech_json_service']);
+            if ($service) {
+                $adminuser = get_admin();
+                $dbtoken   = $DB->get_record(
+                    'external_tokens',
+                    ['userid' => $adminuser->id, 'externalserviceid' => $service->id],
+                    '*',
+                    IGNORE_MULTIPLE
+                );
+                $wstoken = $dbtoken ? $dbtoken->token : '';
+            }
+        }
+
+        if (empty($wstoken)) {
+            return json_encode(['error' => 'No web service token configured']);
+        }
+
+        $expires      = time() + 600;
+        $sig          = hash_hmac('sha256', $wstoken . ':' . $expires, $secret);
+        $teachertoken = $sig . ':' . $expires;
+
+        $userid = intval($parts[0]);
+        $url = rtrim($serverurl, '/') . '/sessions/' . $filerecord->id .
+            '/replay-annotations?person_id=' . $userid;
+
+        $curl    = new curl();
+        $options = [
+            'CURLOPT_RETURNTRANSFER' => true,
+            'CURLOPT_CONNECTTIMEOUT' => 5,
+            'CURLOPT_TIMEOUT'        => 10,
+            'CURLOPT_HTTPHEADER'     => [
+                'X-Teacher-Token: ' . $teachertoken,
+                'X-Ws-Token: ' . $wstoken,
+                'Accept: application/json',
+            ],
+        ];
+
+        $result = $curl->get($url, [], $options);
+
+        if ($result === false) {
+            return json_encode(['error' => $curl->error]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Returns description of authory_tech_get_replay_annotations return value
+     *
+     * @return external_value
+     */
+    public static function authory_tech_get_replay_annotations_returns() {
+        return new external_value(PARAM_RAW, 'Replay annotations JSON from type server');
+    }
+
+    /**
+     * Compute session duration in seconds from the delta events stored in tiny_authory_tech_files.content.
+     * Uses min/max of the `t` (Unix-ms) field across all events. Returns 0 when data is missing or malformed.
+     *
+     * @param int $fileid tiny_authory_tech_files.id
+     * @param object $db Moodle $DB global
+     * @return int Duration in whole seconds, or 0
+     */
+    /**
+     * Compute session and typing durations from delta events in tiny_authory_tech_files.content.
+     *
+     * Returns ['session' => int, 'typing' => int] both in whole seconds.
+     * 'session' = max(t) − min(t) (full span, includes thinking pauses).
+     * 'typing'  = sum of consecutive inter-event gaps that are < 5 s (active keyboard time).
+     * Returns ['session' => 0, 'typing' => 0] when data is missing or malformed.
+     *
+     * @param int $fileid tiny_authory_tech_files.id
+     * @param object $db  Moodle $DB global
+     * @return array{session:int,typing:int}
+     */
+    private static function compute_duration_from_content($fileid, $db): array {
+        $rec = $db->get_record('tiny_authory_tech_files', ['id' => $fileid], 'content', IGNORE_MISSING);
+        if (!$rec || empty($rec->content)) {
+            return ['session' => 0, 'typing' => 0];
+        }
+        $events = json_decode($rec->content, true);
+        if (!is_array($events) || count($events) < 2) {
+            return ['session' => 0, 'typing' => 0];
+        }
+        $timestamps = array_values(array_filter(array_column($events, 't'), static fn($t) => $t > 0));
+        if (count($timestamps) < 2) {
+            return ['session' => 0, 'typing' => 0];
+        }
+        sort($timestamps);
+        $sessionseconds = intval((max($timestamps) - min($timestamps)) / 1000);
+        $typingms = 0;
+        for ($i = 1, $n = count($timestamps); $i < $n; $i++) {
+            $gap = $timestamps[$i] - $timestamps[$i - 1];
+            if ($gap > 0 && $gap < 5000) {
+                $typingms += $gap;
+            }
+        }
+        return ['session' => $sessionseconds, 'typing' => intval($typingms / 1000)];
+    }
+
+    /**
+     * Extract pasted text segments from stored delta events (same source as the replay).
+     *
+     * @param int $fileid tiny_authory_tech_files.id
+     * @param object $db Moodle $DB global
+     * @return string[] Pasted texts in chronological order
+     */
+    private static function compute_pastes_from_content($fileid, $db): array {
+        $rec = $db->get_record('tiny_authory_tech_files', ['id' => $fileid], 'content', IGNORE_MISSING);
+        if (!$rec || empty($rec->content)) {
+            return [];
+        }
+        $events = json_decode($rec->content, true);
+        if (!is_array($events)) {
+            return [];
+        }
+        $pastes = [];
+        foreach ($events as $ev) {
+            if (($ev['meta'] ?? '') !== 'paste') {
+                continue;
+            }
+            foreach (($ev['d'] ?? []) as $op) {
+                if (!empty($op['insert']) && mb_strlen($op['insert']) > 1) {
+                    $pastes[] = $op['insert'];
+                    break;
+                }
+            }
+        }
+        return $pastes;
+    }
+
+    /**
+     * Call typeserver /sessions/:fileid/replay-annotations and return decoded JSON.
+     *
+     * @param int $fileid tiny_authory_tech_files.id (equals typeserver resource_id)
+     * @param object $db Moodle $DB global
+     * @return object|null Decoded response or null on any failure
+     */
+    private static function fetch_typeserver_annotations($fileid, $db) {
+        $secret    = get_config('tiny_authory_tech', 'secretkey');
+        $serverurl = get_config('tiny_authory_tech', 'python_server');
+
+        if (empty($secret) || empty($serverurl)) {
+            return null;
+        }
+
+        $wstoken = get_config('tiny_authory_tech', 'authory_tech_token');
+        if (empty($wstoken)) {
+            $service = $db->get_record('external_services', ['shortname' => 'authory_tech_json_service']);
+            if ($service) {
+                $adminuser = get_admin();
+                $dbtoken   = $db->get_record(
+                    'external_tokens',
+                    ['userid' => $adminuser->id, 'externalserviceid' => $service->id],
+                    '*',
+                    IGNORE_MULTIPLE
+                );
+                $wstoken = $dbtoken ? $dbtoken->token : '';
+            }
+        }
+
+        if (empty($wstoken)) {
+            return null;
+        }
+
+        $expires      = time() + 600;
+        $sig          = hash_hmac('sha256', $wstoken . ':' . $expires, $secret);
+        $teachertoken = $sig . ':' . $expires;
+
+        $url  = rtrim($serverurl, '/') . '/sessions/' . intval($fileid) . '/replay-annotations';
+        $curl = new curl();
+        $opts = [
+            'CURLOPT_RETURNTRANSFER' => true,
+            'CURLOPT_CONNECTTIMEOUT' => 5,
+            'CURLOPT_TIMEOUT'        => 10,
+            'CURLOPT_HTTPHEADER'     => [
+                'X-Teacher-Token: ' . $teachertoken,
+                'X-Ws-Token: ' . $wstoken,
+                'Accept: application/json',
+            ],
+        ];
+
+        $result = $curl->get($url, [], $opts);
+
+        if ($result === false) {
+            return null;
+        }
+
+        return json_decode($result);
+    }
+}

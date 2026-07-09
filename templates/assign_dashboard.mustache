@@ -1,0 +1,99 @@
+{{!
+This file is part of Moodle - http://moodle.org/
+
+Moodle is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Moodle is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Moodle. If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+@template tiny_authory_tech/assign_dashboard
+
+Teacher-facing writing analytics dashboard for an assignment.
+
+Example context (json):
+{
+    "assignment_name": "Essay Assignment",
+    "course_name": "Demo Course",
+    "course_url": "http://localhost/course/view.php?id=1",
+    "assign_url": "http://localhost/mod/assign/view.php?id=2",
+    "cmid": 2
+}
+}}
+
+
+<div class="authory-dash">
+
+    <!-- Header -->
+    <div class="authory-dash-header">
+        <a href="{{assign_url}}" class="authory-dash-back">
+            <i class="fa fa-arrow-left"></i> Back to Assignment
+        </a>
+        <div class="authory-dash-header-center">
+            <h1>{{assignment_name}}</h1>
+            <p>Writing Analytics Dashboard &mdash; <a href="{{course_url}}">{{course_name}}</a></p>
+        </div>
+        <div style="width:120px;"></div>
+    </div>
+
+    <!-- Overview stats — populated by assign_dashboard.js -->
+    <div class="authory-stats-grid">
+        <div class="authory-stat-card">
+            <span class="authory-stat-number" id="authory-overview-total">—</span>
+            <div class="authory-stat-label">Total Students</div>
+        </div>
+        <div class="authory-stat-card">
+            <span class="authory-stat-number" id="authory-overview-avg-wpm">—</span>
+            <div class="authory-stat-label">Avg Typing Speed (WPM)</div>
+        </div>
+        <div class="authory-stat-card">
+            <span class="authory-stat-number" id="authory-overview-avg-time">—</span>
+            <div class="authory-stat-label">Avg Time on Assignment</div>
+        </div>
+        <div class="authory-stat-card">
+            <span class="authory-stat-number" id="authory-overview-submissions">—</span>
+            <div class="authory-stat-label">Submissions with Data</div>
+        </div>
+    </div>
+
+    <!-- Chart data container — populated by assign_dashboard.js -->
+    <div id="authory-chart-data" style="display:none;"></div>
+
+    <!-- Tabs -->
+    <div class="authory-tabs-wrap">
+        <div class="authory-tabs">
+            <button class="authory-tab active" data-tab="authory-overview">
+                &#x1F4CA; Overview
+            </button>
+            {{! Student tabs injected dynamically by assign_dashboard.js }}
+        </div>
+
+        <!-- ===== OVERVIEW TAB ===== -->
+        <div id="authory-overview" class="authory-tab-content active">
+            <div class="authory-chart-section">
+                <h3>&#x1F4C8; Class Typing Speed Comparison</h3>
+                <div class="authory-chart-container">
+                    <canvas id="authory-typing-chart"></canvas>
+                </div>
+            </div>
+            <div class="authory-chart-section">
+                <h3>&#x23F1;&#xFE0F; Time Spent on Assignment</h3>
+                <div class="authory-chart-container">
+                    <canvas id="authory-time-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {{! Student tab panels injected dynamically by assign_dashboard.js }}
+
+    </div><!-- /.authory-tabs-wrap -->
+
+</div><!-- /.authory-dash -->

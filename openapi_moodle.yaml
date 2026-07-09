@@ -1,0 +1,989 @@
+openapi: 3.0.3
+info:
+  title: Authory.tech — Moodle Web Services API
+  description: |
+    Web service functions exposed by the `tiny_authory_tech` TinyMCE plugin.
+
+    All functions are dispatched through Moodle's AJAX endpoint:
+    ```
+    POST {moodle_root}/lib/ajax/service.php
+    ```
+    Each request body is a JSON array of function call objects:
+    ```json
+    [
+      {
+        "index": 0,
+        "methodname": "authory_tech_get_user_list",
+        "args": { "page": 0, "courseid": 5 }
+      }
+    ]
+    ```
+    Responses are a JSON array indexed by `index`. Authentication uses
+    Moodle's session cookie or a webservice token via the `wstoken` query parameter.
+
+    **Capabilities:**
+    - `tiny/authory_tech:view` — read-only access (teachers, admins)
+    - `tiny/authory_tech:write` — write access (students recording keystrokes)
+    - `tiny/authory_tech:writingreport` — access writing reports
+    - `tiny/authory_tech:editsettings` — admin/plugin settings
+
+    See also: `openapi_ml_server.yaml` for the Authory.tech backend API.
+  version: "1.0.0"
+  contact:
+    name: SEPTUM QA
+    email: info@authory.tech
+
+servers:
+  - url: "{moodle_root}/lib/ajax"
+    description: Moodle AJAX dispatcher
+    variables:
+      moodle_root:
+        default: "https://your-moodle-site.com"
+
+tags:
+  - name: Users
+    description: User listing and submission statistics
+  - name: Modules
+    description: Course module listing
+  - name: Writing Storage
+    description: Storing keystroke data and writing sessions
+  - name: Writing Analytics
+    description: Retrieving writing statistics and analytics
+  - name: Writing Differences
+    description: Storing and retrieving text diffs between reconstructed and submitted text
+  - name: Comments
+    description: User comments on submissions
+  - name: Configuration
+    description: Plugin configuration per course/module
+  - name: Tokens
+    description: Token generation and approval
+  - name: Activity Modules
+    description: Activity-specific data (lesson, oublog)
+  - name: Admin
+    description: Administrative functions
+
+paths:
+  /service.php#authory_tech_get_user_list:
+    post:
+      operationId: authory_tech_get_user_list
+      summary: Get list of users in a course
+      description: Returns a JSON-encoded list of users enrolled in a given course.
+      tags: [Users]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_user_list
+                args:
+                  page: 0
+                  courseid: 5
+      responses:
+        '200':
+          description: JSON-encoded list of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+              example:
+                - index: 0
+                  error: false
+                  data: "[{\"id\":1,\"fullname\":\"John Doe\"}]"
+
+  /service.php#authory_tech_get_module_list:
+    post:
+      operationId: authory_tech_get_module_list
+      summary: Get list of course modules
+      description: Returns a JSON-encoded list of activity modules (quiz, assign, forum, etc.) in a course.
+      tags: [Modules]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_module_list
+                args:
+                  page: 0
+                  courseid: 5
+      responses:
+        '200':
+          description: JSON-encoded list of course modules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_store_user_writing:
+    post:
+      operationId: authory_tech_store_user_writing
+      summary: Store user writing statistics
+      description: |
+        Stores aggregate writing statistics for a user's session (KPM, WPM, character count, etc.)
+        into the `tiny_authory_tech_user_writing` table.
+      tags: [Writing Storage]
+      x-moodle-capability: tiny/authory_tech:write
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_store_user_writing
+                args:
+                  personid: 42
+                  fileid: 101
+                  charactercount: 1500
+                  totaltimeseconds: 600
+                  charactersperminute: 150
+                  keycount: 1800
+                  keysperminute: 180
+                  wordcount: 280
+                  wordsperminute: 28
+                  backspacepercent: 0.05
+                  copybehavior: 0.0
+                  score: 0.87
+                  qualityaccess: 1
+      responses:
+        '200':
+          description: Status and message
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          $ref: '#/components/schemas/StatusMessage'
+
+  /service.php#authory_tech_write_local_to_json:
+    post:
+      operationId: authory_tech_write_local_to_json
+      summary: Write keystroke JSON data to the database
+      description: |
+        Saves a batch of keystroke events (from the browser's local storage) to the
+        `tiny_authory_tech_files` table. Returns the resulting filename.
+      tags: [Writing Storage]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_write_local_to_json
+                args:
+                  resourceid: 55
+                  key: "a"
+                  keycode: 65
+                  event: "keydown"
+                  cmid: 12
+                  modulename: "assign"
+                  editorid: "id_introeditor"
+                  jsondata: "[{\"k\":\"a\",\"t\":1234567890}]"
+                  originaltext: "Initial draft text"
+      responses:
+        '200':
+          description: Filename of the stored JSON file
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_reply_json:
+    post:
+      operationId: authory_tech_get_reply_json
+      summary: Retrieve stored keystroke JSON file
+      description: Returns the raw keystroke data, comments, and original text for a given file path.
+      tags: [Writing Analytics]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_reply_json
+                args:
+                  filepath: "authory_tech/101_42_assign.json"
+      responses:
+        '200':
+          description: Keystroke replay data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          type: object
+                          properties:
+                            status:
+                              type: boolean
+                            data:
+                              type: string
+                              description: JSON-encoded keystroke events
+                            comments:
+                              type: string
+                              description: JSON-encoded comments
+                            original:
+                              type: string
+                              description: Original text at session start
+
+  /service.php#authory_tech_get_writing_statistics:
+    post:
+      operationId: authory_tech_get_writing_statistics
+      summary: Get writing analytics for a submission
+      description: Returns aggregate writing analytics record (KPM, WPM, score, etc.) for a given file.
+      tags: [Writing Analytics]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_writing_statistics
+                args:
+                  cmid: 12
+                  fileid: 101
+      responses:
+        '200':
+          description: Writing analytics record
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          type: object
+                          properties:
+                            data:
+                              type: string
+                              description: JSON-encoded analytics record
+
+  /service.php#authory_tech_filtered_writing:
+    post:
+      operationId: authory_tech_filtered_writing
+      summary: Get filtered writing data
+      description: Returns filtered writing data for a course (e.g. for report generation).
+      tags: [Writing Analytics]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_filtered_writing
+                args:
+                  id: "5"
+      responses:
+        '200':
+          description: JSON-encoded filtered writing data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_store_writing_differences:
+    post:
+      operationId: authory_tech_store_writing_differences
+      summary: Store writing differences
+      description: |
+        Stores the diff between the text reconstructed from keystrokes and the final submitted
+        text into the `tiny_authory_tech_writing_diff` table.
+      tags: [Writing Differences]
+      x-moodle-capability: tiny/authory_tech:write
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_store_writing_differences
+                args:
+                  fileid: 101
+                  reconstructedtext: "The reconstructed text from keystrokes"
+                  submittedtext: "The final submitted text"
+                  meta: "{\"similarity\":0.92}"
+      responses:
+        '200':
+          description: Status and message
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          $ref: '#/components/schemas/StatusMessage'
+
+  /service.php#authory_tech_get_writing_differences:
+    post:
+      operationId: authory_tech_get_writing_differences
+      summary: Get writing differences
+      description: Retrieves the stored text diff for a given file submission.
+      tags: [Writing Differences]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_writing_differences
+                args:
+                  fileid: 101
+      responses:
+        '200':
+          description: Writing diff data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          type: object
+                          properties:
+                            data:
+                              type: string
+                              description: JSON-encoded diff content
+
+  /service.php#authory_tech_user_comments:
+    post:
+      operationId: authory_tech_user_comments
+      summary: Store a user comment
+      description: Saves a teacher or student comment on a submission into the `tiny_authory_tech_comments` table.
+      tags: [Comments]
+      x-moodle-capability: tiny/authory_tech:write
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_user_comments
+                args:
+                  modulename: "assign"
+                  cmid: 12
+                  resourceid: 55
+                  courseid: 5
+                  usercomment: "Good use of evidence throughout."
+                  timemodified: 1700000000
+                  editorid: "id_introeditor"
+      responses:
+        '200':
+          description: Boolean success indicator
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_comment_link:
+    post:
+      operationId: authory_tech_get_comment_link
+      summary: Get comment link (quiz)
+      description: Retrieves comment links and associated data for a quiz question resource.
+      tags: [Comments]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_comment_link
+                args:
+                  id: 42
+                  modulename: "quiz"
+                  cmid: 12
+                  questionid: 7
+                  userid: 42
+      responses:
+        '200':
+          description: JSON-encoded comment link data (usercomment + file data)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_assign_comment_link:
+    post:
+      operationId: authory_tech_get_assign_comment_link
+      summary: Get comment link (assignment)
+      description: Retrieves comment links and writing data for an assignment submission.
+      tags: [Comments]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_assign_comment_link
+                args:
+                  id: 42
+                  modulename: "assign"
+                  cmid: 12
+      responses:
+        '200':
+          description: JSON-encoded assignment comment data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_forum_comment_link:
+    post:
+      operationId: authory_tech_get_forum_comment_link
+      summary: Get comment link (forum)
+      description: Retrieves comment link data for a forum post.
+      tags: [Comments]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_forum_comment_link
+                args:
+                  id: 42
+                  modulename: "forum"
+                  cmid: 12
+      responses:
+        '200':
+          description: JSON-encoded forum comment data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_assign_grade_comment:
+    post:
+      operationId: authory_tech_get_assign_grade_comment
+      summary: Get assignment grade comment
+      description: Retrieves the grader's feedback comment alongside writing analytics for an assignment.
+      tags: [Comments]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_assign_grade_comment
+                args:
+                  id: 42
+                  modulename: "assign"
+                  cmid: 12
+      responses:
+        '200':
+          description: JSON-encoded grade comment and analytics data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_user_list_submission_stats:
+    post:
+      operationId: authory_tech_user_list_submission_stats
+      summary: Get user list with submission statistics
+      description: Returns a list of users with their submission status and writing stats for a given activity.
+      tags: [Users]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_user_list_submission_stats
+                args:
+                  id: 42
+                  modulename: "assign"
+                  cmid: 12
+                  filename: "101_42_assign.json"
+      responses:
+        '200':
+          description: JSON-encoded user submission stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_config:
+    post:
+      operationId: authory_tech_get_config
+      summary: Get plugin configuration for a course/module
+      description: |
+        Returns plugin configuration state including sync interval, API key status, module
+        enabled state, rubric settings, paste policy, and quiz/assignment submission info.
+      tags: [Configuration]
+      x-moodle-capability: tiny/authory_tech:writingreport
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_config
+                args:
+                  courseid: 5
+                  cmid: 12
+      responses:
+        '200':
+          description: Plugin configuration object
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          type: object
+                          properties:
+                            status:
+                              type: boolean
+                            sync_interval:
+                              type: integer
+                              description: Autosave interval in seconds
+                            userid:
+                              type: integer
+                            apikey_status:
+                              type: boolean
+                              description: Whether a valid API key is configured
+                            mod_state:
+                              type: boolean
+                              description: Whether the plugin is enabled for this module
+                            plugins:
+                              type: string
+                              description: JSON-encoded list of enabled plugin modules
+                            rubrics:
+                              type: string
+                              description: JSON-encoded rubric settings
+                            submission:
+                              type: string
+                              description: JSON-encoded submission data
+                            quizinfo:
+                              type: string
+                              description: JSON-encoded quiz metadata (if applicable)
+                            pastesetting:
+                              type: string
+                              description: JSON-encoded paste detection policy
+
+  /service.php#authory_tech_generate_webtoken:
+    post:
+      operationId: authory_tech_generate_webtoken
+      summary: Generate a webservice token
+      description: Generates a Moodle webservice token for the current user to authenticate subsequent API calls.
+      tags: [Tokens]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_generate_webtoken
+                args: {}
+      responses:
+        '200':
+          description: Generated token
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/MoodleResponse'
+                    - type: object
+                      properties:
+                        data:
+                          type: object
+                          properties:
+                            token:
+                              type: string
+
+  /service.php#authory_tech_approve_token:
+    post:
+      operationId: authory_tech_approve_token
+      summary: Approve and validate a premium token
+      description: |
+        Sends the provided token to the Authory.tech premium server for validation.
+        Used during plugin activation to verify a license/API key.
+      tags: [Tokens]
+      x-moodle-capability: tiny/authory_tech:editsettings
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_approve_token
+                args:
+                  token: "abc123premiumtoken"
+      responses:
+        '200':
+          description: Approval result from premium server
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_lesson_submission_data:
+    post:
+      operationId: authory_tech_get_lesson_submission_data
+      summary: Get lesson submission data
+      description: Returns submission data for a Moodle Lesson activity.
+      tags: [Activity Modules]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_lesson_submission_data
+                args:
+                  id: 42
+                  modulename: "lesson"
+                  cmid: 12
+      responses:
+        '200':
+          description: JSON-encoded lesson submission data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_oublog_submission_data:
+    post:
+      operationId: authory_tech_get_oublog_submission_data
+      summary: Get OU Blog submission data
+      description: Returns submission data for an OU Blog post.
+      tags: [Activity Modules]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_oublog_submission_data
+                args:
+                  id: 42
+                  resourceid: 9
+                  modulename: "oublog"
+                  cmid: 12
+      responses:
+        '200':
+          description: JSON-encoded OU Blog submission data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_resubmit_payload_data:
+    post:
+      operationId: authory_tech_resubmit_payload_data
+      summary: Resubmit payload to premium server
+      description: Triggers a re-upload of a file's keystroke data to the Authory.tech premium server.
+      tags: [Writing Storage]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_resubmit_payload_data
+                args:
+                  fileid: 101
+                  cmid: 12
+      responses:
+        '200':
+          description: Boolean success indicator
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_get_autosave_content:
+    post:
+      operationId: authory_tech_get_autosave_content
+      summary: Get autosaved content
+      description: Returns the most recently autosaved keystroke content for a user in a given editor context.
+      tags: [Writing Storage]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_get_autosave_content
+                args:
+                  id: 42
+                  modulename: "assign"
+                  cmid: 12
+                  editorid: "id_introeditor"
+                  userid: 42
+                  courseid: 5
+      responses:
+        '200':
+          description: JSON-encoded autosaved content array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_update_pdf_annote_id:
+    post:
+      operationId: authory_tech_update_pdf_annote_id
+      summary: Update PDF annotation ID
+      description: Updates the resource ID linking a comment record to a PDF annotation analytics file.
+      tags: [Comments]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_update_pdf_annote_id
+                args:
+                  cmid: 12
+                  userid: 42
+                  courseid: 5
+                  modulename: "assign"
+                  resourceid: 88
+      responses:
+        '200':
+          description: Boolean success indicator
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+  /service.php#authory_tech_disable_all_course:
+    post:
+      operationId: authory_tech_disable_all_course
+      summary: Disable plugin for all courses
+      description: Globally disables the authory_tech plugin across all courses. Admin-only operation.
+      tags: [Admin]
+      x-moodle-capability: tiny/authory_tech:view
+      x-moodle-type: read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodleRequest'
+            example:
+              - index: 0
+                methodname: authory_tech_disable_all_course
+                args:
+                  disable: true
+      responses:
+        '200':
+          description: Boolean success indicator
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MoodleResponse'
+
+components:
+  schemas:
+    MoodleRequest:
+      type: array
+      description: Moodle AJAX request envelope. Each element is one function call.
+      items:
+        type: object
+        required: [index, methodname, args]
+        properties:
+          index:
+            type: integer
+            description: Zero-based index used to match responses
+          methodname:
+            type: string
+            description: The web service function name (e.g. `authory_tech_get_user_list`)
+          args:
+            type: object
+            description: Function arguments (varies per function)
+
+    MoodleResponse:
+      type: object
+      description: Single function call response within the Moodle AJAX response array
+      properties:
+        index:
+          type: integer
+          description: Matches the request index
+        error:
+          type: boolean
+          description: True if the call failed
+        data:
+          description: Return value — type depends on the function (string, boolean, or object)
+        exception:
+          type: object
+          description: Present only when error is true
+          properties:
+            message:
+              type: string
+            errorcode:
+              type: string
+            debuginfo:
+              type: string
+
+    StatusMessage:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Writing stored successfully"
+
+  securitySchemes:
+    MoodleSession:
+      type: apiKey
+      in: cookie
+      name: MoodleSession
+      description: Standard Moodle session cookie (used when calling from within Moodle)
+    WebserviceToken:
+      type: apiKey
+      in: query
+      name: wstoken
+      description: Moodle webservice token (use `authory_tech_generate_webtoken` to obtain one)
+
+security:
+  - MoodleSession: []
+  - WebserviceToken: []

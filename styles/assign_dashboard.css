@@ -1,0 +1,312 @@
+/*
+This file is part of Moodle - http://moodle.org/
+
+Moodle is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Moodle is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * Styles for the Authory.tech assignment dashboard.
+ *
+ * @package    tiny_authory_tech
+ * @copyright  2026 SEPTUM QA <info@authory.tech>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+.authory-dash * { box-sizing: border-box; }
+.authory-dash {
+    font-family: "Lexend", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #333;
+}
+.authory-dash-header {
+    background: linear-gradient(135deg, #1a3a8f 0%, #234fc2 60%, #2453cc 100%);
+    border-radius: 16px;
+    padding: 24px 32px;
+    margin-bottom: 28px;
+    box-shadow: 0 4px 20px rgba(35, 79, 194, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+.authory-dash-header-center h1 {
+    margin: 0 0 6px 0;
+    font-size: 1.8em;
+    font-weight: 700;
+    color: #fbf2e3;
+    font-family: "Onest", "Lexend", sans-serif;
+}
+.authory-dash-header-center p {
+    margin: 0;
+    color: rgba(251, 242, 227, 0.75);
+    font-size: 0.95em;
+}
+.authory-dash-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(251, 242, 227, 0.15);
+    border: 1.5px solid rgba(251, 242, 227, 0.5);
+    border-radius: 10px;
+    color: #fbf2e3;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+.authory-dash-back:hover { background: rgba(251, 242, 227, 0.28); color: #fff; text-decoration: none; }
+.authory-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+.authory-stat-card {
+    background: white;
+    padding: 22px 18px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-top: 4px solid #234fc2;
+}
+.authory-stat-number {
+    display: block;
+    font-size: 2.6em;
+    font-weight: 700;
+    color: #234fc2;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+.authory-stat-label { color: #666; font-size: 0.9em; }
+.authory-tabs-wrap {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.authory-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 2px solid #fbf2e3;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+}
+.authory-tab {
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 0.95em;
+    font-family: inherit;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.authory-tab:hover { background: #fbf2e3; color: #234fc2; }
+.authory-tab.active { color: #234fc2; border-bottom-color: #234fc2; font-weight: 600; }
+.authory-tab-content { display: none; }
+.authory-tab-content.active { display: block; }
+
+/* Overview charts */
+.authory-chart-section {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.authory-chart-section h3 { color: #234fc2; margin: 0 0 16px 0; font-size: 1.2em; }
+.authory-chart-container { position: relative; height: 260px; }
+
+/* Student card */
+.authory-student-card {
+    border-left: 5px solid #234fc2;
+    background: #fafafa;
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+}
+.authory-student-name { font-size: 1.5em; font-weight: 700; color: #234fc2; margin: 0 0 4px 0; }
+.authory-student-meta { color: #888; font-size: 0.9em; margin: 0; }
+.authory-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+.authory-metric-card {
+    background: white;
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    gap: 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+}
+.authory-metric-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background: #fbf2e3;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #234fc2;
+    font-size: 1.4em;
+}
+.authory-metric-body { flex: 1; min-width: 0; }
+.authory-metric-title { font-weight: 600; color: #234fc2; margin: 0 0 6px 0; font-size: 1em; }
+.authory-metric-hint { color: #888; font-size: 0.82em; font-style: italic; margin: 0 0 8px 0; }
+.authory-big-number { font-size: 2.2em; font-weight: 700; color: #234fc2; line-height: 1; display: block; }
+.authory-unit { font-size: 0.85em; color: #666; display: block; margin-top: 4px; }
+.authory-progress-bar { background: #e8e8e8; height: 10px; border-radius: 5px; overflow: hidden; margin: 10px 0 8px; }
+.authory-progress-fill { height: 100%; background: linear-gradient(90deg,#234fc2,#93b1ee); border-radius: 5px; transition: width 0.5s ease; }
+.authory-comparison {
+    font-size: 0.88em;
+    padding: 7px 11px;
+    border-radius: 6px;
+    font-weight: 500;
+    margin: 0;
+}
+.authory-comparison.deviation-low { background: #fff3cd; color: #856404; }
+.authory-comparison.deviation-medium { background: #f8d7da; color: #721c24; }
+.authory-comparison.deviation-high { background: #dc3545; color: #fff; }
+.authory-word-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 7px; }
+.authory-word-tag {
+    background: #234fc2;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.88em;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+.authory-word-tag:hover { background: #93b1ee; }
+.authory-paste-alert {
+    background: #fff3cd;
+    border-left: 4px solid #ed513b;
+    padding: 10px 13px;
+    border-radius: 6px;
+    margin-top: 8px;
+}
+.authory-paste-alert p { margin: 0 0 4px; color: #333; font-size: 0.9em; }
+.authory-paste-alert p:last-child { margin: 0; color: #555; font-style: italic; font-size: 0.87em; }
+.authory-goto-link { color: #234fc2; font-size: 0.87em; margin-left: 4px; text-decoration: none; }
+.authory-goto-link:hover { text-decoration: underline; }
+.authory-no-paste {
+    background: #d4edda;
+    color: #155724;
+    padding: 10px 13px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.9em;
+    margin-top: 8px;
+}
+/* Essay */
+.authory-essay-section {
+    background: white;
+    border-radius: 10px;
+    padding: 24px;
+    margin-top: 4px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+}
+.authory-essay-title { color: #234fc2; font-size: 1.15em; font-weight: 600; margin: 0 0 16px; }
+.authory-essay-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    background: #fbf2e3;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 0.9em;
+}
+.authory-essay-meta span strong { color: #234fc2; }
+.authory-essay-content { font-size: 1em; line-height: 1.8; color: #333; }
+.authory-essay-content p { margin-bottom: 14px; }
+.highlight-unusual {
+    background: rgba(35,79,194,0.15);
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.highlight-unusual:hover { background: rgba(35,79,194,0.35); }
+.highlight-unusual.flash { animation: authoryFlashBlue 1.5s ease-in-out; }
+.highlight-pasted {
+    background: rgba(237,81,59,0.15);
+    padding: 2px 6px 2px 8px;
+    border-radius: 3px;
+    border-left: 3px solid #ed513b;
+    font-style: italic;
+}
+.highlight-pasted.flash { animation: authoryFlashRed 1.5s ease-in-out; }
+@keyframes authoryFlashBlue {
+    0%,100% { background: rgba(35,79,194,0.15); }
+    50% { background: rgba(35,79,194,0.7); box-shadow: 0 0 16px rgba(35,79,194,0.5); }
+}
+@keyframes authoryFlashRed {
+    0%,100% { background: rgba(237,81,59,0.15); }
+    50% { background: rgba(237,81,59,0.7); box-shadow: 0 0 16px rgba(237,81,59,0.5); }
+}
+@media (max-width: 768px) {
+    .authory-metrics-grid { grid-template-columns: 1fr; }
+    .authory-stats-grid { grid-template-columns: repeat(2,1fr); }
+    .authory-dash-header { flex-direction: column; }
+}
+
+/* ── Replay section ────────────────────────────────────────────────────── */
+.authory-replay-section {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e0e4ee;
+    border-radius: 12px;
+    padding: 24px;
+}
+.authory-replay-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1a2540;
+    margin: 0 0 16px;
+}
+.authory-replay-player {
+    background: #f5f7fb;
+    border: 1px solid #dde2ef;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+}
+.authory-replay-output {
+    min-height: 120px;
+    max-height: 480px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #dde2ef;
+    border-radius: 8px;
+    padding: 16px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #1a2540;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}

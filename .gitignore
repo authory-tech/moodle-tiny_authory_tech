@@ -1,0 +1,11 @@
+.DS_Store
+makefile
+docs/beforeinput-migration.md
+.claude
+.agents
+.junie
+.vibe
+web
+skills-lock.json
+CLAUDE.md
+MARKETPLACE_COMPLIANCE.md

@@ -1,0 +1,117 @@
+services:
+  db:
+    container_name: authory_db
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: moodle_root_pass
+      MYSQL_DATABASE: moodle
+      MYSQL_USER: moodle
+      MYSQL_PASSWORD: moodle_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - moodle_network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "moodle",
+          "-pmoodle_pass",
+        ]
+      timeout: 10s
+      retries: 5
+
+  moodle:
+    container_name: authory_moodle
+    build:
+      context: /Users/nil/Documents/_repos/moodle-demo
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_TYPE: mariadb
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: moodle
+      DB_USER: moodle
+      DB_PASS: moodle_pass
+      DB_PREFIX: mdl_
+      SITE_URL: http://localhost:8080
+      MOODLE_USERNAME: admin
+      MOODLE_PASSWORD: Admin123!
+      MOODLE_EMAIL: admin@authory.com
+      MOODLE_SITENAME: "Authory.tech_Dev"
+      MOODLE_LANG: en
+      DEMO_TEACHER_USER: teacher
+      DEMO_TEACHER_PASSWORD: Teacher123!
+      DEMO_TEACHER_EMAIL: teacher@authory.com
+      DEMO_STUDENT_USER: student
+      DEMO_STUDENT_PASSWORD: Student123!
+      DEMO_STUDENT_EMAIL: student@authory.com
+    volumes:
+      - moodle_data:/var/www/html
+      - moodle_moodledata:/var/moodledata
+      # Mount this plugin into the TinyMCE plugins directory
+      - .:/var/www/html/lib/editor/tiny/plugins/authory_tech
+    networks:
+      - moodle_network
+      - type_server_network
+
+  licenses_db:
+    container_name: authory_licenses_db
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: licenses
+      POSTGRES_PASSWORD: licenses
+      POSTGRES_DB: licenses
+    volumes:
+      - licenses_db_data:/var/lib/postgresql/data
+      - ./licenses-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - licenses_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U licenses -d licenses"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  licenses:
+    container_name: authory_licenses
+    build:
+      context: /Users/nil/Documents/_repos/licenses-dashboard
+      dockerfile: Dockerfile.local
+    ports:
+      - "8082:8080"
+    environment:
+      PORT: "8080"
+      LICENSE_CONNECTION_STRING: "postgresql://licenses:licenses@licenses_db:5432/licenses?sslmode=disable"
+      ADMIN_SECRET: "local-admin-secret"
+    depends_on:
+      licenses_db:
+        condition: service_healthy
+    networks:
+      - licenses_network
+      - type_server_network
+
+
+volumes:
+  db_data:
+  moodle_data:
+  moodle_moodledata:
+  licenses_db_data:
+
+networks:
+  moodle_network:
+    name: authory_moodle_network
+  licenses_network:
+    name: authory_licenses_network
+  type_server_network:
+    name: type-server_default
+    external: true

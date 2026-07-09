@@ -1,0 +1,303 @@
+openapi: 3.0.3
+info:
+  title: Authory.tech — ML Server API
+  description: |
+    Endpoints on the Authory.tech Python/ML backend server called by the Moodle plugin.
+
+    **Important:** These endpoints are called **server-side from Moodle PHP only** — never
+    directly from the browser. They are invoked in two contexts:
+
+    - **Synchronously** — token/subscription checks on page load, re-validated every 5 minutes
+    - **Asynchronously** — keystroke file upload via the `upload_student_json_cron` scheduled task
+
+    ### Authentication
+
+    All requests must include:
+    ```
+    Authorization: Bearer {secretkey}
+    X-Moodle-Url: {moodle_wwwroot}
+    ```
+
+    The `secretkey` is configured in Moodle admin settings under
+    `Site administration → Plugins → Text editors → Authory.tech` (`tiny_authory_tech/secretkey`).
+
+    ### Data flow
+
+    ```
+    Browser (JS key_logger.js / autosaver.js)
+        │  AJAX  authory_tech_write_local_to_json
+        ▼
+    Moodle DB  tiny_authory_tech_files  (uploaded = 0)
+        │
+        │  Cron task: upload_student_json_cron  (async, periodic)
+        ▼
+    POST /upload_file  →  ML processing  →  authorship + analytics result
+    ```
+
+    See also: `openapi_moodle.yaml` for the Moodle web services API.
+  version: "1.0.0"
+  contact:
+    name: SEPTUM QA
+    email: info@authory.tech
+
+servers:
+  - url: "{ml_server}"
+    description: Authory.tech ML/Python backend
+    variables:
+      ml_server:
+        default: "https://api.authory.tech"
+
+tags:
+  - name: License
+    description: Token and subscription verification (called on page load, re-checked every 5 min)
+  - name: Data Upload
+    description: Keystroke data upload for ML processing (triggered by Moodle cron)
+
+paths:
+  /verify-token:
+    post:
+      operationId: ml_verify_token
+      summary: Verify API key / license token
+      description: |
+        Validates the secret key configured in Moodle admin settings.
+
+        Called by `authory_tech_approve_token()` in `lib.php` when an admin saves the API key,
+        and re-invoked automatically every **5 minutes** by `constants::has_api_key()` to keep
+        the local validation status fresh.
+
+        **Source:** `lib.php:421`
+      tags: [License]
+      security:
+        - BearerToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [token, moodle_url]
+              properties:
+                token:
+                  type: string
+                  description: The secret API key configured in Moodle admin settings
+                  example: "sk-abc123premiumkey"
+                moodle_url:
+                  type: string
+                  format: uri
+                  description: The Moodle instance base URL (`$CFG->wwwroot`)
+                  example: "https://moodle.example.com"
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              examples:
+                valid:
+                  summary: Token is valid
+                  value:
+                    status: true
+                invalid:
+                  summary: Token is invalid or expired
+                  value:
+                    status: false
+        '401':
+          description: Missing or malformed Authorization header
+
+  /verify-role:
+    post:
+      operationId: ml_verify_role
+      summary: Check subscription / role status
+      description: |
+        Confirms the Moodle instance has an active subscription and returns the current
+        plan with its usage limits. The plugin persists the plan data locally via
+        `set_config()` and uses it to gate features and enforce limits.
+
+        **Source:** `locallib.php:422`
+      tags: [License]
+      security:
+        - BearerToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [token, moodle_url]
+              properties:
+                token:
+                  type: string
+                  description: The secret API key
+                  example: "sk-abc123premiumkey"
+                moodle_url:
+                  type: string
+                  format: uri
+                  description: The Moodle instance base URL
+                  example: "https://moodle.example.com"
+      responses:
+        '200':
+          description: Subscription status with plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleStatusResponse'
+              examples:
+                trial:
+                  summary: Active trial plan
+                  value:
+                    status: true
+                    plan: trial
+                    student_limit: 35
+                    course_limit: 2
+                    teacher_limit: 1
+                centro:
+                  summary: Active Centro plan
+                  value:
+                    status: true
+                    plan: centro
+                    student_limit: 700
+                    course_limit: null
+                    teacher_limit: null
+                inactive:
+                  summary: No active subscription
+                  value:
+                    status: false
+                    plan: null
+        '401':
+          description: Missing or malformed Authorization header
+
+  /upload_file:
+    post:
+      operationId: ml_upload_file
+      summary: Upload keystroke data for ML processing
+      description: |
+        Receives the raw keystroke event JSON captured during a student's writing session
+        and queues it for authorship verification and writing analytics.
+
+        **Trigger:** The Moodle cron task `upload_student_json_cron` runs periodically, selects
+        all records from `tiny_authory_tech_files` where `uploaded = 0`, calls this endpoint for
+        each one, then sets `uploaded = now()` on success.
+
+        The `ws_token` field gives the ML server a Moodle webservice token it can use to call
+        back into Moodle (e.g. to write computed analytics back via `authory_tech_store_user_writing`).
+
+        **File constraints:** JSON only, max **16 MB**.
+
+        **Source:** `lib.php:294`, `classes/task/upload_student_json_cron.php:54`
+      tags: [Data Upload]
+      security:
+        - BearerToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, resource_id, person_id, class_id, ws_token, originalsubmission]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: |
+                    JSON file with the keystroke event stream. Sent with filename `uploaded.json`.
+
+                    Example structure:
+                    ```json
+                    [
+                      {"k": "H", "kc": 72, "e": "keydown", "t": 1700000001234},
+                      {"k": "e", "kc": 69, "e": "keydown", "t": 1700000001380}
+                    ]
+                    ```
+                resource_id:
+                  type: integer
+                  description: Primary key of the record in `tiny_authory_tech_files`
+                  example: 101
+                person_id:
+                  type: integer
+                  description: Moodle user ID of the student
+                  example: 42
+                class_id:
+                  type: integer
+                  description: Moodle course ID the student belongs to
+                  example: 7
+                ws_token:
+                  type: string
+                  description: |
+                    Moodle webservice token for the Authory.tech service account.
+                    The ML server uses this to call back into Moodle web services
+                    (e.g. to store computed analytics via `authory_tech_store_user_writing`).
+                  example: "a1b2c3d4e5f6a1b2c3d4e5f6"
+                originalsubmission:
+                  type: string
+                  description: The final submitted text from the assignment, quiz, or forum post
+                  example: "The industrial revolution fundamentally changed..."
+      responses:
+        '200':
+          description: File accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  message:
+                    type: string
+                    example: "File received"
+        '400':
+          description: Invalid payload (malformed JSON, missing fields)
+        '401':
+          description: Missing or invalid Bearer token
+        '413':
+          description: File exceeds 16 MB limit
+
+components:
+  schemas:
+    StatusResponse:
+      type: object
+      description: Standard response for token verification
+      required: [status]
+      properties:
+        status:
+          type: boolean
+          description: true if the check passed, false otherwise
+
+    RoleStatusResponse:
+      type: object
+      description: Subscription check response — carries plan type and usage limits
+      required: [status]
+      properties:
+        status:
+          type: boolean
+          description: true if the institution has an active license pool
+        plan:
+          type: string
+          nullable: true
+          enum: [trial, centro, institution]
+          description: Current plan name; null when status is false
+        student_limit:
+          type: integer
+          nullable: true
+          description: Maximum students tracked (per-course for trial, total for centro, null = unlimited)
+        course_limit:
+          type: integer
+          nullable: true
+          description: Maximum courses tracked (null = unlimited)
+        teacher_limit:
+          type: integer
+          nullable: true
+          description: Maximum teachers (null = unlimited)
+
+  securitySchemes:
+    BearerToken:
+      type: http
+      scheme: bearer
+      description: |
+        Secret API key from Moodle admin settings (`tiny_authory_tech/secretkey`).
+        Sent as `Authorization: Bearer {secretkey}` on every request.
+        The header `X-Moodle-Url: {moodle_wwwroot}` is also included on every request.
+
+security:
+  - BearerToken: []
