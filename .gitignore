@@ -9,3 +9,8 @@ web
 skills-lock.json
 CLAUDE.md
 MARKETPLACE_COMPLIANCE.md
+docker-compose.yml
+run_open_api.sh
+elasticmq.conf
+licenses-init.sql
+purge_cache.sh
