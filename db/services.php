@@ -215,10 +215,10 @@ $functions = [
         'methodname' => 'generate_webtoken',
         'classpath' => 'lib/editor/tiny/plugins/authory_tech/externallib.php',
         'description' => 'Generate a webservice token',
-        'type' => 'read',
+        'type' => 'write',
         'ajax' => true,
         'loginrequired' => true,
-        'capabilities' => 'tiny/authory_tech:view',
+        'capabilities' => 'tiny/authory_tech:editsettings',
     ],
     'authory_tech_write_local_to_json' => [
         'classname' => 'authory_tech_json_func_data',

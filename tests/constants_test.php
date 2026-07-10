@@ -64,8 +64,15 @@ final class constants_test extends \advanced_testcase {
     }
 
     public function test_get_paste_setting_returns_configured_value(): void {
+        global $DB;
         $this->resetAfterTest();
-        set_config('PASTE1_2', 'block', 'tiny_authory_tech');
+        $DB->insert_record('tiny_authory_tech_cm_settings', (object) [
+            'cmid' => 2,
+            'courseid' => 1,
+            'status' => 1,
+            'pastesetting' => 'block',
+            'timemodified' => time(),
+        ]);
         $this->assertSame('block', \tiny_authory_tech\constants::get_paste_setting(1, 2));
     }
 

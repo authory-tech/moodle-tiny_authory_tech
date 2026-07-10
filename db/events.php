@@ -51,4 +51,10 @@ $observers = [
         'internal' => true,
         'priority' => 9999,
     ],
+    [
+        'eventname' => '\core\event\course_restored',
+        'callback' => '\tiny_authory_tech\observers::restore_cm_settings',
+        'internal' => true,
+        'priority' => 9999,
+    ],
 ];

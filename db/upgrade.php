@@ -321,5 +321,67 @@ function xmldb_tiny_authory_tech_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026013002, 'tiny', 'authory_tech');
     }
 
+    if ($oldversion < 2026071101) {
+        $table = new xmldb_table('tiny_authory_tech_cm_settings');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('cmid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('status', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('pastesetting', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'allow');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        $index = new xmldb_index('idx_cm_settings_cmid', XMLDB_INDEX_UNIQUE, ['cmid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        $index = new xmldb_index('idx_cm_settings_courseid', XMLDB_INDEX_NOTUNIQUE, ['courseid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Migrate the existing per-course-module config-key settings (CUR{courseid}{cmid},
+        // PASTE{courseid}_{cmid}) into the new table so upgraded sites keep their settings.
+        // The key names concatenate courseid and cmid with no separator, so they can't be
+        // reliably parsed back apart; instead walk real course modules and probe for the
+        // key each one would have produced.
+        $configs = (array) get_config('tiny_authory_tech');
+        if (!empty($configs)) {
+            $rs = $DB->get_recordset('course_modules', null, '', 'id, course');
+            foreach ($rs as $cm) {
+                $key = "CUR{$cm->course}{$cm->id}";
+                if (!array_key_exists($key, $configs)) {
+                    continue;
+                }
+
+                $pastekey = "PASTE{$cm->course}_{$cm->id}";
+                $pastesetting = $configs[$pastekey] ?? 'allow';
+
+                if (!$DB->record_exists('tiny_authory_tech_cm_settings', ['cmid' => $cm->id])) {
+                    $DB->insert_record('tiny_authory_tech_cm_settings', (object) [
+                        'cmid' => $cm->id,
+                        'courseid' => $cm->course,
+                        'status' => (int) $configs[$key],
+                        'pastesetting' => $pastesetting ?: 'allow',
+                        'timemodified' => time(),
+                    ]);
+                }
+
+                unset_config($key, 'tiny_authory_tech');
+                unset_config($pastekey, 'tiny_authory_tech');
+            }
+            $rs->close();
+        }
+
+        upgrade_plugin_savepoint(true, 2026071101, 'tiny', 'authory_tech');
+    }
+
     return true;
 }

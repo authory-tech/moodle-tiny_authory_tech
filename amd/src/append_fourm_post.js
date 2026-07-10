@@ -19,6 +19,7 @@
  * @copyright  CTI <info@cursivetechnology.com>
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @author kuldeep singh <mca.kuldeep.sekhon@gmail.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", "./analytic_button",

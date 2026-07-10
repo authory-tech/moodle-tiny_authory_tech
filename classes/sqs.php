@@ -39,6 +39,9 @@ class sqs {
      * @return bool True on success, false on failure
      */
     public static function send_message(string $queueurl, string $accesskey, string $secretkey, string $body): bool {
+        global $CFG;
+        require_once($CFG->libdir . '/filelib.php');
+
         $parsed    = parse_url($queueurl);
         $host      = $parsed['host'];
         $path      = $parsed['path'] ?? '/';
@@ -82,28 +85,22 @@ class sqs {
             "AWS4-HMAC-SHA256 Credential={$accesskey}/{$credentialscope}, " .
             "SignedHeaders={$signedheaders}, Signature={$signature}";
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => $queueurl,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $postbody,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 10,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_HTTPHEADER     => [
+        $curl = new \curl();
+        $options = [
+            'CURLOPT_TIMEOUT' => 10,
+            'CURLOPT_SSL_VERIFYPEER' => true,
+            'CURLOPT_HTTPHEADER' => [
                 'Content-Type: application/x-www-form-urlencoded',
                 "X-Amz-Date: {$amzdate}",
                 "Authorization: {$authorization}",
             ],
-        ]);
+        ];
 
-        $result   = curl_exec($ch);
-        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error    = curl_error($ch);
-        curl_close($ch);
+        $result   = $curl->post($queueurl, $postbody, $options);
+        $httpcode = $curl->get_info()['http_code'] ?? 0;
 
         if ($result === false) {
-            \debugging("[tiny_authory_tech] SQS curl error: {$error}", DEBUG_DEVELOPER);
+            \debugging("[tiny_authory_tech] SQS curl error: {$curl->error}", DEBUG_DEVELOPER);
             return false;
         }
 

@@ -27,16 +27,15 @@ namespace tiny_authory_tech;
  */
 class observers {
     /**
-     * Tiny authory_tech plugin update comment observer.
+     * Tiny authory_tech plugin update comment logic, run from the process_forum_event ad-hoc task.
      *
-     * @param \core\event\base $event The event object
+     * @param array $eventdata Raw event data from \core\event\base::get_data()
      * @return void
      * @throws \dml_exception
      */
-    public static function update_comment($event) {
+    public static function update_comment($eventdata) {
         global $DB;
 
-        $eventdata  = $event->get_data();
         $table      = 'tiny_authory_tech_comments';
         $modulename = self::get_modules_name($eventdata);
         $conditions = [
@@ -66,17 +65,17 @@ class observers {
     }
 
     /**
-     * Tiny authory_tech plugin update authory_tech files observer.
+     * Tiny authory_tech plugin update authory_tech files logic, run from the process_forum_event
+     * ad-hoc task.
      *
-     * @param \core\event\base $event The event object
+     * @param array $eventdata Raw event data from \core\event\base::get_data()
      * @return void
      * @throws \dml_exception
      */
-    public static function update_authory_tech_files($event) {
+    public static function update_authory_tech_files($eventdata) {
 
         global $DB;
 
-        $eventdata     = $event->get_data();
         if ($eventdata['target'] === "discussion") {
             $discussid = $eventdata['objectid'];
             $postdata  = $DB->get_record('forum_posts', ['discussion' => $discussid]);
@@ -118,44 +117,88 @@ class observers {
     /**
      * Tiny authory_tech plugin login observer.
      *
+     * Queues an ad-hoc task instead of doing the DB work inline, so posting doesn't wait on it.
+     *
      * @param \mod_forum\event\post_created $event
      * @return void
-     * @throws \dml_exception
      */
     public static function observer_login(\mod_forum\event\post_created $event) {
-        self::update_comment($event);
-        self::update_authory_tech_files($event);
+        self::queue_forum_event('post', $event->get_data());
     }
 
     /**
      * Tiny authory_tech plugin post updated observer.
      *
+     * Queues an ad-hoc task instead of doing the DB work inline, so posting doesn't wait on it.
+     *
      * @param \mod_forum\event\post_updated $event
      * @return void
-     * @throws \dml_exception
      */
     public static function post_updated(\mod_forum\event\post_updated $event) {
-        self::update_comment($event);
-        self::update_authory_tech_files($event);
+        self::queue_forum_event('post', $event->get_data());
     }
 
     /**
      * Tiny authory_tech plugin discussion created observer.
      *
+     * Queues an ad-hoc task instead of doing the DB work inline, so posting doesn't wait on it.
+     *
      * @param \mod_forum\event\discussion_created $event
+     * @return void
+     */
+    public static function discussion_created(\mod_forum\event\discussion_created $event) {
+        self::queue_forum_event('discussion', $event->get_data());
+    }
+
+    /**
+     * Queue an ad-hoc task to process a forum event asynchronously. Event observers should stay
+     * lightweight, so all the actual DB work happens in \tiny_authory_tech\task\process_forum_event.
+     *
+     * @param string $type Either 'post' or 'discussion'
+     * @param array $eventdata Raw event data from \core\event\base::get_data()
+     * @return void
+     */
+    private static function queue_forum_event($type, array $eventdata) {
+        $task = new \tiny_authory_tech\task\process_forum_event();
+        $task->set_custom_data([
+            'type' => $type,
+            'eventdata' => $eventdata,
+        ]);
+        \core\task\manager::queue_adhoc_task($task);
+    }
+
+    /**
+     * Process a forum post-created/post-updated event: update comment and file tracking records.
+     * Run from the process_forum_event ad-hoc task, not called directly from the event observer.
+     *
+     * @param array $eventdata Raw event data from \core\event\base::get_data()
      * @return void
      * @throws \dml_exception
      */
-    public static function discussion_created(\mod_forum\event\discussion_created $event) {
+    public static function process_post_event(array $eventdata) {
+        self::update_comment($eventdata);
+        self::update_authory_tech_files($eventdata);
+    }
 
+    /**
+     * Process a discussion-created event: update comment and file tracking records using the
+     * discussion's first post as the resource id. Run from the process_forum_event ad-hoc task,
+     * not called directly from the event observer.
+     *
+     * @param array $eventdata Raw event data from \core\event\base::get_data()
+     * @return void
+     * @throws \dml_exception
+     */
+    public static function process_discussion_event(array $eventdata) {
         global $DB;
-        $eventdata        = $event->get_data();
-        $objectid         = $eventdata['objectid'];
-        $discussionstable = 'forum_discussions';
-        $discussionsrec   = $DB->get_record($discussionstable, ['id' => $objectid]);
-        $table            = 'tiny_authory_tech_comments';
 
-        $conditions       = [
+        $discussionsrec = $DB->get_record('forum_discussions', ['id' => $eventdata['objectid']]);
+        if (!$discussionsrec) {
+            return;
+        }
+
+        $table      = 'tiny_authory_tech_comments';
+        $conditions = [
             "userid"     => $eventdata['userid'],
             "modulename" => 'forum',
             'resourceid' => 0,
@@ -179,7 +222,7 @@ class observers {
         $conditions['modulename'] = 'forum_autosave';
 
         self::update_autosaved_content($conditions, $table, $eventdata, $discussionsrec->firstpost);
-        self::update_authory_tech_files($event);
+        self::update_authory_tech_files($eventdata);
     }
 
     /**
@@ -207,6 +250,69 @@ class observers {
         foreach ($fileids as $file) {
             $DB->delete_records('tiny_authory_tech_user_writing', ['file_id' => $file->id]);
             $DB->delete_records('tiny_authory_tech_writing_diff', ['file_id' => $file->id]);
+        }
+    }
+
+    /**
+     * Best-effort restore of per-course-module Authory.tech settings after a course restore.
+     *
+     * There is no documented generic backup/restore hook for a "tiny" editor subplugin, so this
+     * reads the backup id-mapping table directly while it's still populated for this restore.
+     * backup_ids_temp is a database-native temporary table, scoped to the DB connection that ran
+     * the restore, and is dropped once that restore finishes cleaning up — so it may legitimately
+     * not exist by the time this observer runs (e.g. a different connection, or cleanup already
+     * ran). When that happens, restored course modules simply keep the plugin default (enabled,
+     * paste allowed) instead of erroring.
+     *
+     * \core\event\course_restored does not carry the restore id, so mappings are matched purely on
+     * newitemid against this course's real (freshly restored) course module ids — those ids are
+     * only ever produced by the restore that just ran, so no explicit backupid filter is needed.
+     *
+     * @param \core\event\course_restored $event
+     * @return void
+     * @throws \dml_exception
+     */
+    public static function restore_cm_settings(\core\event\course_restored $event) {
+        global $DB;
+
+        if (!$DB->get_manager()->table_exists('backup_ids_temp')) {
+            return;
+        }
+
+        $eventdata = $event->get_data();
+        $courseid  = $eventdata['courseid'];
+
+        $newcmids = $DB->get_fieldset_select('course_modules', 'id', 'course = :courseid', ['courseid' => $courseid]);
+        if (!$newcmids) {
+            return;
+        }
+
+        [$insql, $inparams] = $DB->get_in_or_equal($newcmids, SQL_PARAMS_NAMED);
+        $mappings = $DB->get_records_select(
+            'backup_ids_temp',
+            "itemname = 'course_module' AND newitemid $insql",
+            $inparams,
+            '',
+            'newitemid, itemid'
+        );
+
+        foreach ($mappings as $mapping) {
+            if ($DB->record_exists('tiny_authory_tech_cm_settings', ['cmid' => $mapping->newitemid])) {
+                continue;
+            }
+
+            $source = $DB->get_record('tiny_authory_tech_cm_settings', ['cmid' => $mapping->itemid]);
+            if (!$source) {
+                continue;
+            }
+
+            $DB->insert_record('tiny_authory_tech_cm_settings', (object) [
+                'cmid' => $mapping->newitemid,
+                'courseid' => $courseid,
+                'status' => $source->status,
+                'pastesetting' => $source->pastesetting,
+                'timemodified' => time(),
+            ]);
         }
     }
 

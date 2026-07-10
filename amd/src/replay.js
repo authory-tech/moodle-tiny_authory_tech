@@ -19,6 +19,7 @@
  * @copyright  CTI <info@cursivetechnology.com>
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @author kuldeep singh <mca.kuldeep.sekhon@gmail.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {call as fetchJson} from 'core/ajax';

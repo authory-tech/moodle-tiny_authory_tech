@@ -781,7 +781,7 @@ export default class DocumentView {
     }
 
     getSidebarTitle() {
-        const [assign, discus, quiz, lesson] = this.getText('sbTitle');
+        const [assign, discus, quiz, lesson, , pdfannotation, page] = this.getText('sbTitle');
         switch (this.module) {
             case 'assign':
                 return {title: assign, icon: Icons.assignment};
@@ -792,9 +792,9 @@ export default class DocumentView {
             case 'quiz':
                 return {title: quiz, icon: Icons.quiz};
             case 'pdfannotator':
-                return {title: 'PDF Annotation', icon: Icons.pdfannotator};
+                return {title: pdfannotation, icon: Icons.pdfannotator};
             default:
-                return {title: 'Page', icon: Icons.quiz};
+                return {title: page, icon: Icons.quiz};
         }
     }
 

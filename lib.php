@@ -175,12 +175,8 @@ function tiny_authory_tech_coursemodule_standard_elements($formwrapper, $mform) 
     $module    = $formwrapper->get_current()->modulename;
     $courseid  = $formwrapper->get_current()->course;
     $instance  = $formwrapper->get_current()->coursemodule;
-    $key       = "CUR$courseid$instance";
-    $state     = get_config('tiny_authory_tech', $key);
+    $state     = constants::is_cm_enabled($instance) ? 1 : 0;
 
-    if ($state === "1" || $state === false) {
-        $state = true;
-    }
     // Constants::NAMES is authory_tech supported plugin list defined in tiny_authory_tech\constant class.
     if (in_array($module, constants::NAMES)) {
         $mform->addElement('header', 'authory_tech_header', 'Authory.tech', 'local_callbacks');
@@ -201,12 +197,7 @@ function tiny_authory_tech_coursemodule_standard_elements($formwrapper, $mform) 
             'cite_source' => get_string('paste_cite_source', 'tiny_authory_tech'),
         ];
 
-        $pastekey     = "PASTE{$courseid}_{$instance}";
-        $pastesetting = get_config('tiny_authory_tech', $pastekey);
-
-        if (!$pastesetting) {
-            $pastesetting = 'allow';
-        }
+        $pastesetting = constants::get_paste_setting($courseid, $instance);
 
         $mform->addElement(
             'select',
@@ -240,15 +231,11 @@ function tiny_authory_tech_coursemodule_edit_post_actions($formdata, $course) {
     }
     // Constants::NAMES is authory_tech supported plugin list defined in tiny_authory_tech\constant class.
     if (in_array($formdata->modulename, constants::NAMES)) {
-        $state    = $formdata->authory_tech_status;
+        $state    = (int) $formdata->authory_tech_status;
         $courseid = $course->id;
         $instance = $formdata->coursemodule;
-        $key      = "CUR$courseid$instance";
-        set_config($key, $state, 'tiny_authory_tech');
-    }
-    if (!empty($formdata->paste_setting) && $state == 1) {
-        $pastekey = "PASTE{$courseid}_{$instance}";
-        set_config($pastekey, $formdata->paste_setting, 'tiny_authory_tech');
+        $pastesetting = (!empty($formdata->paste_setting) && $state === 1) ? $formdata->paste_setting : null;
+        constants::set_cm_settings($courseid, $instance, $state, $pastesetting);
     }
     return $formdata;
 }
@@ -425,7 +412,7 @@ function tiny_authory_tech_publish_to_sqs($filerecord, $wstoken, $answertext, $q
  * @param string $url The API URL to test (e.g. http://app:8084)
  * @return string JSON-encoded result with status and message
  */
-function authory_tech_test_connection($url) {
+function tiny_authory_tech_test_connection($url) {
     global $CFG;
     require_once("$CFG->libdir/filelib.php");
 
@@ -527,7 +514,7 @@ function tiny_authory_tech_status($courseid = 0) {
  * @return string The response from the remote verification server, empty string if no token configured
  * @throws moodle_exception If token verification fails or there is a curl error
  */
-function authory_tech_approve_token() {
+function tiny_authory_tech_approve_token() {
     global $CFG;
     require_once("$CFG->libdir/filelib.php");
 
@@ -565,7 +552,7 @@ function authory_tech_approve_token() {
         }
     } catch (moodle_exception $e) {
         // Log the exception.
-        debugging("Error in authory_tech_approve_token_func: " . $e->getMessage());
+        debugging("Error in tiny_authory_tech_approve_token: " . $e->getMessage());
 
         // Return a Moodle exception.
         throw new moodle_exception('errorverifyingtoken', 'tiny_authory_tech', '', null, $e->getMessage());

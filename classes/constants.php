@@ -179,10 +179,82 @@ class constants {
             $cmid = tiny_authory_tech_get_cmid($courseid) ?? 0;
         }
 
-        $pastekey     = "PASTE{$courseid}_{$cmid}";
-        $pastesetting = get_config('tiny_authory_tech', $pastekey);
+        $settings = self::get_cm_settings($cmid);
 
-        return !empty($pastesetting) ? $pastesetting : 'allow';
+        return ($settings && !empty($settings->pastesetting)) ? $settings->pastesetting : 'allow';
+    }
+
+    /**
+     * Get the stored Authory.tech settings row for a course module, if any.
+     *
+     * @param int $cmid The course module ID
+     * @return \stdClass|false The settings record, or false if none exists
+     */
+    public static function get_cm_settings($cmid) {
+        global $DB;
+        return $DB->get_record('tiny_authory_tech_cm_settings', ['cmid' => $cmid]);
+    }
+
+    /**
+     * Check whether Authory.tech is enabled for a specific course module.
+     * Defaults to enabled when no row exists, matching the plugin's historical default.
+     *
+     * @param int $cmid The course module ID
+     * @return bool True if enabled
+     */
+    public static function is_cm_enabled($cmid) {
+        $settings = self::get_cm_settings($cmid);
+        return $settings ? (bool) $settings->status : true;
+    }
+
+    /**
+     * Persist Authory.tech settings for a specific course module.
+     *
+     * @param int $courseid The course ID
+     * @param int $cmid The course module ID
+     * @param int $status 1 to enable, 0 to disable
+     * @param string|null $pastesetting Paste behaviour to store, or null to leave it unchanged
+     * @return void
+     */
+    public static function set_cm_settings($courseid, $cmid, $status, $pastesetting = null) {
+        global $DB;
+
+        $existing = self::get_cm_settings($cmid);
+        if ($existing) {
+            $existing->status = $status;
+            if ($pastesetting !== null) {
+                $existing->pastesetting = $pastesetting;
+            }
+            $existing->timemodified = time();
+            $DB->update_record('tiny_authory_tech_cm_settings', $existing);
+            return;
+        }
+
+        $DB->insert_record('tiny_authory_tech_cm_settings', (object) [
+            'cmid' => $cmid,
+            'courseid' => $courseid,
+            'status' => $status,
+            'pastesetting' => $pastesetting ?? 'allow',
+            'timemodified' => time(),
+        ]);
+    }
+
+    /**
+     * Get a cmid-keyed map of Authory.tech enabled-status for every course module in a course.
+     * Used by reporting/filter UIs that previously bulk-read CUR* config keys.
+     *
+     * @param int $courseid The course ID
+     * @return array cmid => bool enabled
+     */
+    public static function get_cm_settings_map($courseid) {
+        global $DB;
+
+        $rows = $DB->get_records('tiny_authory_tech_cm_settings', ['courseid' => $courseid], '', 'cmid, status');
+        $map = [];
+        foreach ($rows as $row) {
+            $map[$row->cmid] = (bool) $row->status;
+        }
+        return $map;
     }
     /**
      * Flag indicating whether to enable replay functionality.
@@ -209,12 +281,8 @@ class constants {
         global $PAGE;
         $instance = $PAGE->cm->id ?? 0;
         $courseid = $PAGE->cm->course ?? $PAGE->course->id;
-        $key      = "CUR$courseid$instance";
-        $state    = get_config('tiny_authory_tech', $key);
+        $state    = self::is_cm_enabled($instance);
 
-        if ($state === "1" || $state === false) {
-            $state = true;
-        }
         // Condition changed for course participants list.
         if ($PAGE->bodyid === array_keys(self::BODY_IDS)[5] && get_config('tiny_authory_tech', "authory_tech-$courseid")) {
             $state = true;
@@ -249,7 +317,7 @@ class constants {
         }
 
         if ($syncinterval <= $now) {
-            $response = authory_tech_approve_token();
+            $response = tiny_authory_tech_approve_token();
             $data      = json_decode($response);
             $newkey = (!empty($data->status) && $data->status) ? $data->status : false;
 

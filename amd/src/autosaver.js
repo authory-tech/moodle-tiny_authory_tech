@@ -19,6 +19,7 @@
  * @copyright  CTI <info@cursivetechnology.com>
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @author     Brain Station 23 <sales@brainstation-23.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {call} from 'core/ajax';
@@ -850,6 +851,8 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
                 getString('pluginname', 'mod_quiz'),
                 getString('pluginname', 'mod_lesson'),
                 getString('description', 'tiny_authory_tech'),
+                getString('pdfannotation', 'tiny_authory_tech'),
+                getString('page', 'tiny_authory_tech'),
             ]).then(function(strings) {
                 return localStorage.setItem('sbTitle', JSON.stringify(strings));
             }).catch(error => window.console.error(error));

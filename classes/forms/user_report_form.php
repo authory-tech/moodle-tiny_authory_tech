@@ -117,11 +117,7 @@ class user_report_form extends moodleform {
             return $mdetail;
         }
 
-        $configs = array_filter(
-            (array) get_config('tiny_authory_tech'),
-            fn($key) => str_starts_with($key, 'CUR'),
-            ARRAY_FILTER_USE_KEY
-        );
+        $configs = constants::get_cm_settings_map($courseid);
 
         $modinfo = get_fast_modinfo($courseid);
         $cms = $modinfo->get_cms();
@@ -131,8 +127,7 @@ class user_report_form extends moodleform {
                 continue;
             }
 
-            $key = "CUR{$courseid}{$cm->id}";
-            if (isset($configs[$key]) && !(int)$configs[$key]) {
+            if (isset($configs[$cm->id]) && !$configs[$cm->id]) {
                 continue;
             }
             // Add module name.

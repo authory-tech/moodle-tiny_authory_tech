@@ -330,7 +330,7 @@ class authory_tech_json_func_data extends external_api {
         self::validate_context($context);
         require_capability('tiny/authory_tech:editsettings', $context);
 
-        $result = authory_tech_approve_token();
+        $result = tiny_authory_tech_approve_token();
 
         return $result;
     }
@@ -378,7 +378,7 @@ class authory_tech_json_func_data extends external_api {
         self::validate_context($context);
         require_capability('tiny/authory_tech:editsettings', $context);
 
-        return authory_tech_test_connection($params['url']);
+        return tiny_authory_tech_test_connection($params['url']);
     }
 
     /**
@@ -1708,6 +1708,10 @@ class authory_tech_json_func_data extends external_api {
      * @return array Array containing the generated token
      */
     public static function generate_webtoken() {
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:editsettings', $context);
+
         $token = tiny_authory_tech_create_token_for_user();
         if ($token) {
             set_config('authory_tech_token', $token, 'tiny_authory_tech');

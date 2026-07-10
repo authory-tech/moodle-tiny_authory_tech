@@ -42,12 +42,12 @@ $url = new moodle_url('/lib/editor/tiny/plugins/authory_tech/assign_dashboard.ph
 
 $PAGE->set_context(context_system::instance());
 $PAGE->set_url($url);
-$PAGE->set_title(get_string('pluginname', 'tiny_authory_tech') . ' - Dashboard');
+$PAGE->set_title(get_string('pluginname', 'tiny_authory_tech') . ' - ' . get_string('dashboard', 'tiny_authory_tech'));
 $PAGE->set_heading($course->fullname);
 
 $PAGE->navbar->add($course->shortname, new moodle_url('/course/view.php', ['id' => $course->id]));
 $PAGE->navbar->add($cm->name, new moodle_url('/mod/assign/view.php', ['id' => $cmid]));
-$PAGE->navbar->add('Authory Writing Dashboard');
+$PAGE->navbar->add(get_string('writingdashboard', 'tiny_authory_tech'));
 
 if (!has_capability('tiny/authory_tech:view', $context)) {
     echo $OUTPUT->header();

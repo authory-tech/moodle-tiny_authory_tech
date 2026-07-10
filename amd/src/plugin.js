@@ -19,6 +19,7 @@
  * @copyright  2025 CTI <info@cursivetechnology.com>
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @author     Brain Station 23 <sales@brainstation-23.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {getTinyMCE} from 'editor_tiny/loader';

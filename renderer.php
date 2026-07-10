@@ -47,8 +47,7 @@ class tiny_authory_tech_renderer extends plugin_renderer_base {
 
         $totalcount = $users['count'];
         $data       = $users['data'];
-        $configs = get_config('tiny_authory_tech');
-        $configs = array_filter((array)$configs, fn($key) => str_starts_with($key, 'CUR'), ARRAY_FILTER_USE_KEY);
+        $configs = constants::get_cm_settings_map($courseid);
         $modinfo  = get_fast_modinfo($courseid);
         $cms = $modinfo->get_cms(); // Course modules.
 
@@ -69,13 +68,12 @@ class tiny_authory_tech_renderer extends plugin_renderer_base {
             }
 
             $filepath = $user->filename;
-            $key = "CUR{$courseid}{$cm->id}";
 
             if (!in_array($cm->modname, constants::NAMES, true)) {
                 continue;
             }
             // Excluding authory_tech disabled modules.
-            if (isset($configs[$key]) && !(int)$configs[$key]) {
+            if (isset($configs[$cm->id]) && !$configs[$cm->id]) {
                 continue;
             }
 
