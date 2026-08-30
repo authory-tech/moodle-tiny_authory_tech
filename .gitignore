@@ -14,3 +14,5 @@ run_open_api.sh
 elasticmq.conf
 licenses-init.sql
 purge_cache.sh
+
+feedback.txt
