@@ -23,27 +23,32 @@
  */
 
 
-const component = 'tiny_authory_tech';
+export const component = 'tiny_authory_tech';
+export const pluginName = `${component}/plugin`;
+export const iconUrl = M.util.image_url('authory_tech', 'tiny_authory_tech');
+export const iconSaving = M.util.image_url('rotate', 'tiny_authory_tech');
+export const iconGrayUrl = M.util.image_url('authory_tech_gray', 'tiny_authory_tech');
+export const tooltipCss = {
+    display: 'block',
+    position: 'absolute',
+    transform: 'translateX(-100%)',
+    backgroundColor: 'white',
+    color: 'black',
+    border: '1px solid #ccc',
+    marginBottom: '6px',
+    padding: '10px',
+    textAlign: 'justify',
+    minWidth: '200px',
+    borderRadius: '1px',
+    pointerEvents: 'none',
+    zIndex: 10000
+};
 
 export default {
     component,
-    pluginName: `${component}/plugin`,
-    iconUrl: M.util.image_url('authory_tech', 'tiny_authory_tech'),
-    iconSaving: M.util.image_url('rotate', 'tiny_authory_tech'),
-    iconGrayUrl: M.util.image_url('authory_tech_gray', 'tiny_authory_tech'),
-    tooltipCss: {
-        display: 'block',
-        position: 'absolute',
-        transform: 'translateX(-100%)',
-        backgroundColor: 'white',
-        color: 'black',
-        border: '1px solid #ccc',
-        marginBottom: '6px',
-        padding: '10px',
-        textAlign: 'justify',
-        minWidth: '200px',
-        borderRadius: '1px',
-        pointerEvents: 'none',
-        zIndex: 10000
-    }
+    pluginName,
+    iconUrl,
+    iconSaving,
+    iconGrayUrl,
+    tooltipCss,
 };
