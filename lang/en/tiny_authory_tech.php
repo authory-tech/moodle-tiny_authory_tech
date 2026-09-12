@@ -43,6 +43,7 @@ $string['authory_tech:dis:succ'] = 'Authory.tech disabled successfully.';
 $string['authory_tech:editsettings'] = 'Access plugin settings';
 $string['authory_tech:ena:fail'] = 'Failed to enable Authory.tech.';
 $string['authory_tech:ena:succ'] = 'Authory.tech enabled successfully.';
+$string['authory_tech:state:accept'] = 'Accept';
 $string['authory_tech:state:active'] = 'Authory.tech is active:';
 $string['authory_tech:state:active:des'] = 'Your drafting and editing are now being captured as part of your submission.';
 $string['authory_tech:status'] = 'Something went wrong while disabling Authory.tech.';

@@ -706,6 +706,11 @@ body.tox-fullscreen .tiny-authory_tech-modal .modal-dialog .close {
     display: none;
 }
 
+/* State popup (Accept-only): hide the Cancel button that SAVE_CANCEL always renders */
+.tiny-authory_tech-state-modal .modal-footer [data-action="cancel"] {
+    display: none;
+}
+
 .tiny_authory_tech_outputElement {
     white-space: pre-wrap;
     word-break: break-word;
