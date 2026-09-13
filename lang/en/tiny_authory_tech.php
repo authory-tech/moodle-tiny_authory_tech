@@ -66,6 +66,7 @@ $string['character_verify'] = "Character verification";
 $string['characters_per_minute'] = 'Characters per minute';
 $string['chart_result'] = 'Showing result based on course and module';
 $string['chart_result_user'] = 'Showing result based on course, module and user';
+$string['check_webservices_action'] = 'Web service settings';
 $string['check_webservices_name'] = 'Authory.tech: web services configuration';
 $string['check_webservices_ok'] = 'Web services and the REST protocol are enabled.';
 $string['close'] = 'Close';
