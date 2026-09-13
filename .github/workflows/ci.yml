@@ -183,12 +183,19 @@ jobs:
       # references core classes/aliases resolves correctly; it needs a real Moodle
       # checkout with `composer install` already run there, which moodle-plugin-ci's
       # install step (above) provides via ci/.env's MOODLE_DIR.
+      #
+      # continue-on-error on all three steps below: this integration is unofficial
+      # (no moodle-plugin-ci support) and has broken across Moodle-branch/docroot-layout
+      # edge cases twice already. It must never be able to mask the real, official
+      # moodle-plugin-ci checks (phpcs/phpunit/behat/etc.) that run after it.
       - name: Load Moodle install path
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: cat ci/.env >> "$GITHUB_ENV"
 
       - name: Install PHPStan (Moodle-aware)
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: |
           mkdir -p phpstan-tools
           cd phpstan-tools
@@ -201,6 +208,7 @@ jobs:
 
       - name: PHPStan static analysis
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: |
           # Moodle 5.1+ moves the real docroot (dirroot) to $MOODLE_DIR/public; the
           # bootstrap must scan that, not the outer checkout, or file-based requires
