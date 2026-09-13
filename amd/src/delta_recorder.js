@@ -21,7 +21,7 @@
  */
 
 import {call} from 'core/ajax';
-import {create} from 'core/modal_factory';
+import ModalSaveCancel from 'core/modal_save_cancel';
 import {get_string as getString} from 'core/str';
 import {save, cancel, hidden} from 'core/modal_events';
 import $ from 'jquery';
@@ -199,14 +199,13 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
             getString('tiny_authory_tech_placeholder', 'tiny_authory_tech')
         ]).then(function([title, titledes, placeholder]) {
 
-            return create({
-                type: 'SAVE_CANCEL',
+            return ModalSaveCancel.create({
                 title: `<div><div class="tiny-authory_tech-title-text">${title}</div>
                 <span class="tiny-authory_tech-title-description ">${titledes}</span></div>`,
                 body: `<textarea  class="form-control inputUrl" value="" id="inputUrl" placeholder="${placeholder}"></textarea>`,
                 removeOnClose: true,
             })
-                .done(modal => {
+                .then(modal => {
                     modal.getRoot().addClass('tiny-authory_tech-modal');
                     modal.show();
                     var lastEvent = '';
@@ -475,6 +474,7 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
     }
 
     let _tooltipFullscreenState = null;
+    let _statePopupShown = false;
     /**
      * @returns {void}
      */
@@ -528,6 +528,11 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
                     $(`#${tooltipId}`).css('display', 'none');
                 });
             }
+
+            if (!_statePopupShown) {
+                _statePopupShown = true;
+                showStatePopup();
+            }
         } catch (error) {
             window.console.error('Error setting up custom tooltip:', error);
         }
@@ -546,6 +551,34 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
             getString('authory_tech:state:active:des', 'tiny_authory_tech'),
         ]);
         return {buttonTitle, buttonDes};
+    }
+
+    /**
+     * Shows the Authory.tech active-state message in a popup with a single
+     * Accept button that dismisses it. Called once, the first time the
+     * state icon renders (i.e. on page render).
+     * @returns {void}
+     */
+    function showStatePopup() {
+        Promise.all([
+            getString('authory_tech:state:active', 'tiny_authory_tech'),
+            getString('authory_tech:state:active:des', 'tiny_authory_tech'),
+            getString('authory_tech:state:accept', 'tiny_authory_tech'),
+        ]).then(function([title, description, acceptText]) {
+            return ModalSaveCancel.create({
+                title: `<div class="tiny-authory_tech-title-text">${title}</div>`,
+                body: `<span class="tiny-authory_tech-title-description">${description}</span>`,
+                buttons: {save: acceptText},
+                removeOnClose: true,
+            })
+                .then(modal => {
+                    modal.getRoot().addClass('tiny-authory_tech-modal tiny-authory_tech-state-modal');
+                    modal.show();
+                    modal.getRoot().on(save, function() {
+                        modal.destroy();
+                    });
+                });
+        }).catch(error => window.console.error(error));
     }
 
     /**

@@ -26,6 +26,7 @@
 namespace tiny_authory_tech\privacy;
 
 use core_privacy\local\request\approved_contextlist;
+use core_privacy\local\request\contextlist;
 use core_privacy\local\request\writer;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\userlist;
@@ -84,8 +85,8 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
      * @param int $userid The user to search.
      * @return contextlist $contextlist The contextlist containing the list of contexts used in this plugin.
      */
-    public static function get_contexts_for_userid(int $userid): \core_privacy\local\request\contextlist {
-        $contextlist = new \core_privacy\local\request\contextlist();
+    public static function get_contexts_for_userid(int $userid): contextlist {
+        $contextlist = new contextlist();
 
         $sql = "SELECT c.id
                   FROM {tiny_authory_tech_files} f
