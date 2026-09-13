@@ -6,6 +6,14 @@ on:
     branches: [main, develop]
   workflow_dispatch: {}
 
+# A push to a branch that also has an open PR fires both `push` and `pull_request`
+# for the same commit. `github.ref` differs between the two events for the same
+# branch (refs/heads/x vs refs/pull/N/merge), so it wouldn't unify them — the
+# head branch name (head_ref for pull_request, ref_name for push) does.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -90,8 +98,10 @@ jobs:
     continue-on-error: ${{ matrix.moodle-branch != 'MOODLE_405_STABLE' }}
 
     services:
+      # Postgres 16 is Moodle 5.2's minimum (per moodle-plugin-ci's changelog); newer-than-minimum
+      # is always safe for the older 4.5 leg too, so this is bumped globally rather than per-branch.
       postgres:
-        image: postgres:13
+        image: postgres:16
         env:
           POSTGRES_USER: "postgres"
           POSTGRES_HOST_AUTH_METHOD: "trust"
@@ -116,6 +126,13 @@ jobs:
         php: ["8.1", "8.2", "8.3"]
         moodle-branch: ["MOODLE_405_STABLE", "MOODLE_502_STABLE"]
         database: [mariadb, pgsql]
+        # Moodle 5.2 requires PHP >=8.3 (composer.json); 8.1/8.2 fail at Moodle's own
+        # `composer install` before any of our checks even run — not a real gap to test.
+        exclude:
+          - php: "8.1"
+            moodle-branch: "MOODLE_502_STABLE"
+          - php: "8.2"
+            moodle-branch: "MOODLE_502_STABLE"
 
     steps:
       - name: Check out repository code
@@ -185,7 +202,15 @@ jobs:
       - name: PHPStan static analysis
         if: ${{ !cancelled() }}
         run: |
-          sed "s#__MOODLE_ROOT__#${MOODLE_DIR}#" plugin/phpstan.neon.dist > plugin/phpstan.neon
+          # Moodle 5.1+ moves the real docroot (dirroot) to $MOODLE_DIR/public; the
+          # bootstrap must scan that, not the outer checkout, or file-based requires
+          # computed from $CFG->dirroot resolve to paths phpstan-moodle never scanned.
+          if [ -d "${MOODLE_DIR}/public" ]; then
+            MOODLE_ROOT="${MOODLE_DIR}/public"
+          else
+            MOODLE_ROOT="${MOODLE_DIR}"
+          fi
+          sed "s#__MOODLE_ROOT__#${MOODLE_ROOT}#" plugin/phpstan.neon.dist > plugin/phpstan.neon
           php -d memory_limit=1G phpstan-tools/vendor/bin/phpstan analyse -c plugin/phpstan.neon --no-progress
 
       - name: Validating
