@@ -98,7 +98,9 @@ function classifyInputType(inputType) {
     }
 }
 
-export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, submission, quizInfo, pasteSetting) => {
+export const register = (
+    editor, interval, userId, hasApiKey, MODULES, Rubrics, submission, quizInfo, pasteSetting, statePopupEnabled
+) => {
 
     var isStudent = !($('#body').hasClass('teacher_admin'));
     var intervention = $('#body').hasClass('intervention');
@@ -119,6 +121,7 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
     var modulename = modulesInfo.name;
     var errorAlert = true;
     let PASTE_SETTING = pasteSetting || 'allow';
+    let STATE_POPUP_ENABLED = statePopupEnabled !== false;
     let shouldBlockPaste = false;
     let isPasteAllowed = false;
 
@@ -529,7 +532,7 @@ export const register = (editor, interval, userId, hasApiKey, MODULES, Rubrics, 
                 });
             }
 
-            if (!_statePopupShown) {
+            if (!_statePopupShown && STATE_POPUP_ENABLED) {
                 _statePopupShown = true;
                 showStatePopup();
             }

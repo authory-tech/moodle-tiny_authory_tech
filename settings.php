@@ -207,6 +207,14 @@ if ($ADMIN->fulltree) {
             1
         )
     );
+    $settings->add(
+        new admin_setting_configcheckbox(
+            'tiny_authory_tech/enable_state_popup',
+            get_string('enable_state_popup', "tiny_authory_tech"),
+            get_string('enable_state_popup_desc', 'tiny_authory_tech'),
+            1
+        )
+    );
 
     $settings->add(
         new admin_setting_heading(

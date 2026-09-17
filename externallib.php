@@ -1956,6 +1956,7 @@ class authory_tech_json_func_data extends external_api {
             $quizdata->close = $quiz->timeclose;
         }
         $pastesetting = constants::get_paste_setting($params['courseid'], $params['cmid']);
+        $statepopup   = constants::enable_state_popup();
 
         $plan = constants::get_plan();
         $planinfo = [
@@ -1979,6 +1980,7 @@ class authory_tech_json_func_data extends external_api {
             'quizinfo'      => json_encode($quizdata),
             'pastesetting'  => $pastesetting,
             'plan_info'     => json_encode($planinfo),
+            'state_popup_enabled' => $statepopup,
         ];
         return $data;
     }
@@ -2001,6 +2003,7 @@ class authory_tech_json_func_data extends external_api {
             'quizinfo' => new external_value(PARAM_TEXT, 'quiz info'),
             'pastesetting'  => new external_value(PARAM_TEXT, 'Paste setting'),
             'plan_info' => new external_value(PARAM_TEXT, 'JSON: plan name, trial days remaining, limit state'),
+            'state_popup_enabled' => new external_value(PARAM_BOOL, 'Whether to show the active-state popup once per session'),
         ]);
     }
 
