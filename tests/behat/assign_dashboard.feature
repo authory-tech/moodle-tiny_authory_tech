@@ -59,3 +59,13 @@ Feature: Teacher writing analytics dashboard
     And I am on the "Test Assignment" "assign activity" page
     When I follow "View Authory Writing Dashboard"
     Then the writing dashboard should show "Test Assignment"
+
+  @javascript
+  Scenario: Typing speed shows as unavailable rather than 0 when type-server cannot be reached
+    Given the type-server for this site is unreachable
+    And there is a writing submission from "student1" for "assign1"
+    And I log in as "teacher1"
+    When I am on the writing dashboard for "assign1"
+    And I click on "Student One" "button"
+    Then I should see "Typing speed unavailable"
+    And I should not see "0 words per minute"

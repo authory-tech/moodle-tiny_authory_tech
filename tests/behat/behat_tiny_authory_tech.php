@@ -78,4 +78,56 @@ class behat_tiny_authory_tech extends behat_base {
         $course = $DB->get_record('course', ['shortname' => $shortname], '*', MUST_EXIST);
         set_config("authory_tech-{$course->id}", '1', 'tiny_authory_tech');
     }
+
+    /**
+     * Configures the plugin so it will actually attempt to reach type-server (passing
+     * the early "not configured" check in get_student_stats()) but the address is
+     * unreachable — the same failure mode as type-server's DB being down in
+     * production. Used to test that the dashboard shows "unavailable" rather than a
+     * misleading "0 WPM" when real stats can't be fetched.
+     *
+     * Example: Given the type-server for this site is unreachable
+     *
+     * @Given the type-server for this site is unreachable
+     */
+    public function the_typeserver_for_this_site_is_unreachable(): void {
+        set_config('secretkey', 'behat-test-secret', 'tiny_authory_tech');
+        set_config('python_server', 'http://127.0.0.1:1', 'tiny_authory_tech');
+    }
+
+    /**
+     * Seeds a tiny_authory_tech_files row with delta-event content for a student's
+     * assignment submission, so the dashboard has a student panel to open.
+     *
+     * Example: Given there is a writing submission from "student1" for "assign1"
+     *
+     * @Given there is a writing submission from :username for :activityidnumber
+     * @param string $username
+     * @param string $activityidnumber
+     */
+    public function there_is_a_writing_submission_from_for(string $username, string $activityidnumber): void {
+        global $DB;
+
+        $user = $DB->get_record('user', ['username' => $username], '*', MUST_EXIST);
+        $cm   = $DB->get_record('course_modules', ['idnumber' => $activityidnumber], '*', MUST_EXIST);
+
+        $base = 1_700_000_000_000;
+        $events = [
+            ['t' => $base, 'd' => [['insert' => 'H']], 'meta' => 'keystroke'],
+            ['t' => $base + 2000, 'd' => [['retain' => 1], ['insert' => 'i']], 'meta' => 'keystroke'],
+        ];
+
+        $DB->insert_record('tiny_authory_tech_files', (object) [
+            'userid'          => $user->id,
+            'cmid'            => $cm->id,
+            'courseid'        => $cm->course,
+            'modulename'      => 'assign',
+            'resourceid'      => 1,
+            'filename'        => "{$user->id}_1_{$cm->id}_attempt.json",
+            'content'         => json_encode($events),
+            'original_content' => 'Hi',
+            'timemodified'    => time(),
+            'uploaded'        => 0,
+        ]);
+    }
 }

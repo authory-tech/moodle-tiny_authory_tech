@@ -22,8 +22,9 @@
  */
 
 define(
-    ['jquery', 'core/chartjs', 'core/ajax', 'core/templates', 'tiny_authory_tech/replay'],
-    function($, Chart, Ajax, Templates, Replay) {
+    ['jquery', 'core/chartjs', 'core/ajax', 'core/templates', 'tiny_authory_tech/replay',
+        'tiny_authory_tech/dashboard_metrics'],
+    function($, Chart, Ajax, Templates, Replay, DashboardMetrics) {
 
     /**
      * Highlight a word element in the essay: scroll to it and flash the animation.
@@ -127,30 +128,15 @@ define(
         var fullname       = panel.dataset.fullname || '';
         var userid         = panel.dataset.userid || '';
         // stats_available is false when type-server couldn't compute real stats
-        // (e.g. its database is unreachable) - avg_wpm/class_avg_wpm/wpm_diff are
-        // absent in that case, so render "unavailable" rather than a misleading 0.
-        var statsAvailable = !!stats.stats_available;
-        var wpm            = statsAvailable ? Math.round(stats.avg_wpm || 0) : 0;
-        var classAvgWpm    = statsAvailable ? Math.round(stats.class_avg_wpm || 0) : 0;
-        var wpmDiff        = statsAvailable ? (parseFloat(stats.wpm_diff) || 0) : 0;
-        var sessionStr  = formatDuration(stats.duration_seconds || 0);
-        var typingStr   = formatDuration(stats.typing_duration_seconds || 0);
+        // (e.g. its database is unreachable) — resolveTypingSpeedDisplay renders
+        // "unavailable" in that case rather than a misleading 0.
+        var typingSpeed = DashboardMetrics.resolveTypingSpeedDisplay(stats);
+        var sessionStr  = DashboardMetrics.formatDuration(stats.duration_seconds || 0);
+        var typingStr   = DashboardMetrics.formatDuration(stats.typing_duration_seconds || 0);
         var unusualWords  = stats.unusual_words || [];
         var pastedTexts   = stats.pasted_texts  || [];
         var submText      = stats.submission_text || '';
         var filename      = stats.filename || '';
-
-        var absDiff  = Math.abs(wpmDiff);
-        var devClass = absDiff < 5 ? 'deviation-low' : (absDiff < 15 ? 'deviation-medium' : 'deviation-high');
-        var sign     = wpmDiff >= 0 ? '+' : '';
-        var diffText = statsAvailable
-            ? (sign + wpmDiff.toFixed(1) + ' WPM vs class average (' + classAvgWpm + ' WPM)')
-            : 'Typing speed unavailable';
-
-        // Progress bar: student WPM as proportion of 2× class avg (capped at 100%).
-        var progressPct = classAvgWpm > 0
-            ? Math.min(100, Math.round(wpm / (classAvgWpm * 2) * 100))
-            : Math.min(100, wpm);
 
         var html = '<div class="authory-student-card">'
             + '<h2 class="authory-student-name">' + escapeHtml(fullname) + '</h2>'
@@ -164,12 +150,12 @@ define(
             + '<div class="authory-metric-icon">\u2328</div>'
             + '<div class="authory-metric-body">'
             + '<p class="authory-metric-title">Typing Speed</p>'
-            + '<span class="authory-big-number">' + (statsAvailable ? wpm : '—') + '</span>'
+            + '<span class="authory-big-number">' + typingSpeed.displayValue + '</span>'
             + '<span class="authory-unit">words per minute</span>'
             + '<div class="authory-progress-bar">'
-            + '<div class="authory-progress-fill" style="width:' + progressPct + '%"></div>'
+            + '<div class="authory-progress-fill" style="width:' + typingSpeed.progressPct + '%"></div>'
             + '</div>'
-            + '<p class="authory-comparison ' + devClass + '">' + diffText + '</p>'
+            + '<p class="authory-comparison ' + typingSpeed.comparisonClass + '">' + typingSpeed.comparisonText + '</p>'
             + '</div></div>';
 
         // Unusual words
@@ -243,22 +229,6 @@ define(
         if (enableReplay && filename) {
             new Replay('content' + userid, filename, 10, false, 'player_' + userid);
         }
-    }
-
-    /**
-     * Format a duration in seconds as a human-readable string.
-     * Shows seconds when under a minute, otherwise whole minutes.
-     * @param {number} seconds
-     * @returns {string}
-     */
-    function formatDuration(seconds) {
-        if (!seconds || seconds <= 0) {
-            return '—';
-        }
-        if (seconds < 60) {
-            return Math.round(seconds) + ' sec';
-        }
-        return Math.round(seconds / 60) + ' min';
     }
 
     /**
@@ -432,7 +402,7 @@ define(
                 }
                 var avgTimeEl = document.getElementById('authory-overview-avg-time');
                 if (avgTimeEl) {
-                    avgTimeEl.textContent = formatDuration(overview.class_avg_duration_seconds || 0);
+                    avgTimeEl.textContent = DashboardMetrics.formatDuration(overview.class_avg_duration_seconds || 0);
                 }
 
                 // Charts — resolve names from Moodle students list

@@ -2531,18 +2531,6 @@ class authory_tech_json_func_data extends external_api {
             return json_encode(['stats_available' => false, 'error' => $curl->error]);
         }
 
-        // A non-2xx response (e.g. type-server's DB is unreachable) still comes back
-        // as a decodable JSON body like {"error": "database error"} — decode it, but
-        // don't let it masquerade as real stats. wpm/class_avg_wpm can only come from
-        // type-server, so on failure we drop them entirely rather than silently
-        // rendering as 0.
-        $httpcode = $curl->info['http_code'] ?? 0;
-        $decoded  = json_decode($result, true);
-        $statsok  = $httpcode === 200 && is_array($decoded) && !isset($decoded['error']);
-
-        $merged = $statsok ? $decoded : [];
-        $merged['stats_available'] = $statsok;
-
         // Merge submission text and filename from Moodle DB into the response.
         $filerecordextra = $DB->get_record(
             'tiny_authory_tech_files',
@@ -2550,19 +2538,57 @@ class authory_tech_json_func_data extends external_api {
             'original_content, filename, content',
             IGNORE_MISSING
         );
-        $merged['submission_text'] = $filerecordextra->original_content ?? '';
-        $merged['filename']        = $filerecordextra->filename ?? '';
         $durations = self::compute_duration_from_content($params['resource_id'], $DB);
-        if (empty($merged['duration_seconds']) && $durations['session'] > 0) {
-            $merged['duration_seconds'] = $durations['session'];
-        }
-        if (empty($merged['typing_duration_seconds']) && $durations['typing'] > 0) {
-            $merged['typing_duration_seconds'] = $durations['typing'];
-        }
-        // Always use local content as source of truth for paste texts (matches replay exactly).
-        $merged['pasted_texts'] = self::compute_pastes_from_content($params['resource_id'], $DB);
+        $localfallback = [
+            'submission_text'         => $filerecordextra->original_content ?? '',
+            'filename'                => $filerecordextra->filename ?? '',
+            'duration_seconds'        => $durations['session'],
+            'typing_duration_seconds' => $durations['typing'],
+            // Always use local content as source of truth for paste texts (matches replay exactly).
+            'pasted_texts'            => self::compute_pastes_from_content($params['resource_id'], $DB),
+        ];
+
+        $merged = self::build_student_stats_payload($curl->info['http_code'] ?? 0, $result, $localfallback);
 
         return json_encode($merged);
+    }
+
+    /**
+     * Interprets type-server's raw HTTP response (curl itself already succeeded —
+     * see the $result === false check in get_student_stats()) and merges in
+     * Moodle-local fallback data. Pure and directly unit-testable: no curl, no DB.
+     *
+     * A non-2xx response (e.g. type-server's DB is unreachable) still comes back
+     * as a decodable JSON body like {"error": "database error"} — decode it, but
+     * don't let it masquerade as real stats. wpm/class_avg_wpm can only come from
+     * type-server, so on failure they're dropped entirely rather than silently
+     * rendering as 0; duration/typing/submission fields still come from the local
+     * fallback since those don't depend on type-server at all.
+     *
+     * @param int $httpcode HTTP status code from the type-server call
+     * @param string $rawresult Raw response body from type-server
+     * @param array $localfallback keys: submission_text, filename, duration_seconds,
+     *              typing_duration_seconds, pasted_texts
+     * @return array The merged payload, ready for json_encode()
+     */
+    public static function build_student_stats_payload($httpcode, $rawresult, array $localfallback) {
+        $decoded = json_decode($rawresult, true);
+        $statsok = $httpcode === 200 && is_array($decoded) && !isset($decoded['error']);
+
+        $merged = $statsok ? $decoded : [];
+        $merged['stats_available'] = $statsok;
+
+        $merged['submission_text'] = $localfallback['submission_text'] ?? '';
+        $merged['filename']        = $localfallback['filename'] ?? '';
+        if (empty($merged['duration_seconds']) && ($localfallback['duration_seconds'] ?? 0) > 0) {
+            $merged['duration_seconds'] = $localfallback['duration_seconds'];
+        }
+        if (empty($merged['typing_duration_seconds']) && ($localfallback['typing_duration_seconds'] ?? 0) > 0) {
+            $merged['typing_duration_seconds'] = $localfallback['typing_duration_seconds'];
+        }
+        $merged['pasted_texts'] = $localfallback['pasted_texts'] ?? [];
+
+        return $merged;
     }
 
     /**

@@ -85,6 +85,30 @@ jobs:
           "
 
   # -----------------------------------------------------------------------
+  # JS unit tests for the pure logic in amd/src (Jest). Independent of the
+  # Moodle install matrix below — no Moodle instance needed for these.
+  # -----------------------------------------------------------------------
+  js-test:
+    name: JS Unit Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest
+        run: npm test
+
+  # -----------------------------------------------------------------------
   # Full, exhaustive Moodle test matrix — runs on every PR and on every push
   # to main/develop, once lint passes. There is no separate lighter/heavier
   # split: this is the only test job, and it always runs the full matrix.
