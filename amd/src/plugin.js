@@ -60,7 +60,8 @@ export default new Promise((resolve, reject) => {
                             JSON.parse(data.submission),
                             JSON.parse(data.quizinfo),
                             data.pastesetting,
-                            data.state_popup_enabled
+                            data.state_popup_enabled,
+                            data.course_fullname
                         );
                 }
                 }).fail((error) => {

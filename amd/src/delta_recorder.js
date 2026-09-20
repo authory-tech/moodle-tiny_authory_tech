@@ -99,7 +99,8 @@ function classifyInputType(inputType) {
 }
 
 export const register = (
-    editor, interval, userId, hasApiKey, MODULES, Rubrics, submission, quizInfo, pasteSetting, statePopupEnabled
+    editor, interval, userId, hasApiKey, MODULES, Rubrics, submission, quizInfo, pasteSetting, statePopupEnabled,
+    courseFullname
 ) => {
 
     var isStudent = !($('#body').hasClass('teacher_admin'));
@@ -122,6 +123,7 @@ export const register = (
     var errorAlert = true;
     let PASTE_SETTING = pasteSetting || 'allow';
     let STATE_POPUP_ENABLED = statePopupEnabled !== false;
+    let COURSE_FULLNAME = courseFullname || '';
     let shouldBlockPaste = false;
     let isPasteAllowed = false;
 
@@ -567,18 +569,42 @@ export const register = (
             getString('authory_tech:state:active', 'tiny_authory_tech'),
             getString('authory_tech:state:active:des', 'tiny_authory_tech'),
             getString('authory_tech:state:accept', 'tiny_authory_tech'),
-        ]).then(function([title, description, acceptText]) {
+            getString('authory_tech:state:responsible', 'tiny_authory_tech'),
+        ]).then(function([title, description, acceptText, responsibleLabel]) {
+            const responsibleHtml = COURSE_FULLNAME
+                ? `<span class="tiny-authory_tech-title-responsible">${responsibleLabel} ${COURSE_FULLNAME}</span>`
+                : '';
             return ModalSaveCancel.create({
                 title: `<div class="tiny-authory_tech-title-text">${title}</div>`,
-                body: `<span class="tiny-authory_tech-title-description">${description}</span>`,
+                body: `<span class="tiny-authory_tech-title-description">${description}</span>${responsibleHtml}`,
                 buttons: {save: acceptText},
                 removeOnClose: true,
             })
                 .then(modal => {
                     modal.getRoot().addClass('tiny-authory_tech-modal tiny-authory_tech-state-modal');
+
+                    // This popup requires explicit acknowledgement: neutralise every
+                    // dismissal path core Modal wires up on its own (header close icon,
+                    // Escape key, clicking outside) so only the accept button below can
+                    // close it. Restored just before that click so the real close
+                    // (backdrop, focus, aria cleanup) still runs correctly.
+                    const realHide = modal.hide.bind(modal);
+                    const realDestroy = modal.destroy.bind(modal);
+                    modal.hide = () => {};
+                    modal.destroy = () => {};
+
                     modal.show();
                     modal.getRoot().on(save, function() {
+                        modal.hide = realHide;
+                        modal.destroy = realDestroy;
                         modal.destroy();
+
+                        call([{
+                            methodname: 'authory_tech_record_state_popup_accepted',
+                            args: {cmid: cmid},
+                        }])[0].fail(function(error) {
+                            window.console.error('Error recording popup acceptance:', error);
+                        });
                     });
                 });
         }).catch(error => window.console.error(error));

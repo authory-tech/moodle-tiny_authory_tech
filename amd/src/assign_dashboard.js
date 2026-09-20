@@ -21,7 +21,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define(['jquery', 'core/chartjs', 'core/ajax', 'tiny_authory_tech/replay'], function($, Chart, Ajax, Replay) {
+define(
+    ['jquery', 'core/chartjs', 'core/ajax', 'core/templates', 'tiny_authory_tech/replay'],
+    function($, Chart, Ajax, Templates, Replay) {
 
     /**
      * Highlight a word element in the essay: scroll to it and flash the animation.
@@ -64,11 +66,15 @@ define(['jquery', 'core/chartjs', 'core/ajax', 'tiny_authory_tech/replay'], func
         panel.dataset.fileId = student.file_id || '';
         panel.dataset.fullname = student.fullname;
         panel.dataset.loaded = '0';
-        panel.innerHTML = '<div class="authory-student-card">'
-            + '<h2 class="authory-student-name">' + escapeHtml(student.fullname) + '</h2>'
-            + '<p class="authory-student-loading">Loading data\u2026</p>'
-            + '</div>';
         wrapEl.appendChild(panel);
+
+        Templates.render('tiny_authory_tech/assign_dashboard_student_loading', {fullname: student.fullname})
+            .then(function(html) {
+                panel.innerHTML = html;
+                return true;
+            }).catch(function(error) {
+                window.console.error('Failed to render template:', error);
+            });
     }
 
     /**
@@ -118,11 +124,15 @@ define(['jquery', 'core/chartjs', 'core/ajax', 'tiny_authory_tech/replay'], func
      * @param {boolean} enableReplay Whether the replay feature is enabled
      */
     function renderStudentPanel(panel, stats, enableReplay) {
-        var fullname      = panel.dataset.fullname || '';
-        var userid        = panel.dataset.userid || '';
-        var wpm           = Math.round(stats.avg_wpm || 0);
-        var classAvgWpm   = Math.round(stats.class_avg_wpm || 0);
-        var wpmDiff       = parseFloat(stats.wpm_diff) || 0;
+        var fullname       = panel.dataset.fullname || '';
+        var userid         = panel.dataset.userid || '';
+        // stats_available is false when type-server couldn't compute real stats
+        // (e.g. its database is unreachable) - avg_wpm/class_avg_wpm/wpm_diff are
+        // absent in that case, so render "unavailable" rather than a misleading 0.
+        var statsAvailable = !!stats.stats_available;
+        var wpm            = statsAvailable ? Math.round(stats.avg_wpm || 0) : 0;
+        var classAvgWpm    = statsAvailable ? Math.round(stats.class_avg_wpm || 0) : 0;
+        var wpmDiff        = statsAvailable ? (parseFloat(stats.wpm_diff) || 0) : 0;
         var sessionStr  = formatDuration(stats.duration_seconds || 0);
         var typingStr   = formatDuration(stats.typing_duration_seconds || 0);
         var unusualWords  = stats.unusual_words || [];
@@ -133,7 +143,9 @@ define(['jquery', 'core/chartjs', 'core/ajax', 'tiny_authory_tech/replay'], func
         var absDiff  = Math.abs(wpmDiff);
         var devClass = absDiff < 5 ? 'deviation-low' : (absDiff < 15 ? 'deviation-medium' : 'deviation-high');
         var sign     = wpmDiff >= 0 ? '+' : '';
-        var diffText = sign + wpmDiff.toFixed(1) + ' WPM vs class average (' + classAvgWpm + ' WPM)';
+        var diffText = statsAvailable
+            ? (sign + wpmDiff.toFixed(1) + ' WPM vs class average (' + classAvgWpm + ' WPM)')
+            : 'Typing speed unavailable';
 
         // Progress bar: student WPM as proportion of 2× class avg (capped at 100%).
         var progressPct = classAvgWpm > 0
@@ -152,7 +164,7 @@ define(['jquery', 'core/chartjs', 'core/ajax', 'tiny_authory_tech/replay'], func
             + '<div class="authory-metric-icon">\u2328</div>'
             + '<div class="authory-metric-body">'
             + '<p class="authory-metric-title">Typing Speed</p>'
-            + '<span class="authory-big-number">' + wpm + '</span>'
+            + '<span class="authory-big-number">' + (statsAvailable ? wpm : '—') + '</span>'
             + '<span class="authory-unit">words per minute</span>'
             + '<div class="authory-progress-bar">'
             + '<div class="authory-progress-fill" style="width:' + progressPct + '%"></div>'

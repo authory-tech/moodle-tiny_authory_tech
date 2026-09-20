@@ -1957,6 +1957,8 @@ class authory_tech_json_func_data extends external_api {
         }
         $pastesetting = constants::get_paste_setting($params['courseid'], $params['cmid']);
         $statepopup   = constants::enable_state_popup();
+        $course       = get_course($params['courseid']);
+        $coursefullname = format_string($course->fullname, true, ['context' => $context]);
 
         $plan = constants::get_plan();
         $planinfo = [
@@ -1981,6 +1983,7 @@ class authory_tech_json_func_data extends external_api {
             'pastesetting'  => $pastesetting,
             'plan_info'     => json_encode($planinfo),
             'state_popup_enabled' => $statepopup,
+            'course_fullname' => $coursefullname,
         ];
         return $data;
     }
@@ -2004,6 +2007,7 @@ class authory_tech_json_func_data extends external_api {
             'pastesetting'  => new external_value(PARAM_TEXT, 'Paste setting'),
             'plan_info' => new external_value(PARAM_TEXT, 'JSON: plan name, trial days remaining, limit state'),
             'state_popup_enabled' => new external_value(PARAM_BOOL, 'Whether to show the active-state popup once per session'),
+            'course_fullname' => new external_value(PARAM_TEXT, 'Full name of the course the module belongs to'),
         ]);
     }
 
@@ -2081,10 +2085,18 @@ class authory_tech_json_func_data extends external_api {
      * @return bool True if authory_tech was successfully disabled for all courses
      */
     public static function disable_authory_tech($disable) {
+        $params = self::validate_parameters(
+            self::disable_authory_tech_parameters(),
+            ['disable' => $disable],
+        );
+
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:editsettings', $context);
 
         try {
             $courses = get_courses();
-            $value = !$disable;
+            $value = !$params['disable'];
             foreach ($courses as $course) {
                 set_config("authory_tech-{$course->id}", $value, 'tiny_authory_tech');
             }
@@ -2102,6 +2114,50 @@ class authory_tech_json_func_data extends external_api {
      */
     public static function disable_authory_tech_returns() {
         return new external_value(PARAM_BOOL, 'authory_tech disable message');
+    }
+
+    /**
+     * Returns the parameters for the record_state_popup_accepted function
+     *
+     * @return external_function_parameters The parameters structure containing:
+     *         - cmid (int): Course module ID the popup was shown in
+     */
+    public static function record_state_popup_accepted_parameters() {
+        return new external_function_parameters(
+            [
+                'cmid' => new external_value(PARAM_INT, 'cmid', VALUE_DEFAULT, 0),
+            ]
+        );
+    }
+
+    /**
+     * Records that the current user acknowledged the Authory.tech active-state popup.
+     *
+     * @param int $cmid Course module ID the popup was shown in
+     * @return bool True once the event has been triggered
+     */
+    public static function record_state_popup_accepted($cmid) {
+        $params = self::validate_parameters(
+            self::record_state_popup_accepted_parameters(),
+            ['cmid' => $cmid],
+        );
+
+        $context = context_module::instance($params['cmid']);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:write', $context);
+
+        \tiny_authory_tech\event\state_popup_accepted::create(['context' => $context])->trigger();
+
+        return true;
+    }
+
+    /**
+     * Returns description of method result value for record_state_popup_accepted
+     *
+     * @return external_value Returns a boolean parameter indicating the event was recorded
+     */
+    public static function record_state_popup_accepted_returns() {
+        return new external_value(PARAM_BOOL, 'true once the acceptance event has been recorded');
     }
 
     /**
@@ -2472,34 +2528,41 @@ class authory_tech_json_func_data extends external_api {
         $result = $curl->get($url, [], $options);
 
         if ($result === false) {
-            return json_encode(['error' => $curl->error]);
+            return json_encode(['stats_available' => false, 'error' => $curl->error]);
         }
 
-        // Merge submission text and filename from Moodle DB into the type-server response.
+        // A non-2xx response (e.g. type-server's DB is unreachable) still comes back
+        // as a decodable JSON body like {"error": "database error"} — decode it, but
+        // don't let it masquerade as real stats. wpm/class_avg_wpm can only come from
+        // type-server, so on failure we drop them entirely rather than silently
+        // rendering as 0.
+        $httpcode = $curl->info['http_code'] ?? 0;
+        $decoded  = json_decode($result, true);
+        $statsok  = $httpcode === 200 && is_array($decoded) && !isset($decoded['error']);
+
+        $merged = $statsok ? $decoded : [];
+        $merged['stats_available'] = $statsok;
+
+        // Merge submission text and filename from Moodle DB into the response.
         $filerecordextra = $DB->get_record(
             'tiny_authory_tech_files',
             ['id' => $params['resource_id']],
             'original_content, filename, content',
             IGNORE_MISSING
         );
-        $decoded = json_decode($result, true);
-        if (is_array($decoded)) {
-            $decoded['submission_text'] = $filerecordextra->original_content ?? '';
-            $decoded['filename']        = $filerecordextra->filename ?? '';
-            $durations = self::compute_duration_from_content($params['resource_id'], $DB);
-            if (empty($decoded['duration_seconds']) && $durations['session'] > 0) {
-                $decoded['duration_seconds'] = $durations['session'];
-            }
-            if (empty($decoded['typing_duration_seconds']) && $durations['typing'] > 0) {
-                $decoded['typing_duration_seconds'] = $durations['typing'];
-            }
-            // Always use local content as source of truth for paste texts (matches replay exactly).
-            $localpastes = self::compute_pastes_from_content($params['resource_id'], $DB);
-            $decoded['pasted_texts'] = $localpastes;
-            return json_encode($decoded);
+        $merged['submission_text'] = $filerecordextra->original_content ?? '';
+        $merged['filename']        = $filerecordextra->filename ?? '';
+        $durations = self::compute_duration_from_content($params['resource_id'], $DB);
+        if (empty($merged['duration_seconds']) && $durations['session'] > 0) {
+            $merged['duration_seconds'] = $durations['session'];
         }
+        if (empty($merged['typing_duration_seconds']) && $durations['typing'] > 0) {
+            $merged['typing_duration_seconds'] = $durations['typing'];
+        }
+        // Always use local content as source of truth for paste texts (matches replay exactly).
+        $merged['pasted_texts'] = self::compute_pastes_from_content($params['resource_id'], $DB);
 
-        return $result;
+        return json_encode($merged);
     }
 
     /**
@@ -2624,7 +2687,23 @@ class authory_tech_json_func_data extends external_api {
                 continue;
             }
             sort($timestamps);
-            $sessionseconds = (max($timestamps) - min($timestamps)) / 1000;
+            // Gap-capped, same as compute_duration_from_content(): duration only counts
+            // gaps up to the window-closed threshold (5 min), and wpm's denominator only
+            // counts gaps up to the typing threshold (5 s) — a raw max-min span would fold
+            // multi-session/multi-day breaks into both numbers.
+            $sessionms = 0;
+            $typingms  = 0;
+            for ($i = 1, $n = count($timestamps); $i < $n; $i++) {
+                $gap = $timestamps[$i] - $timestamps[$i - 1];
+                if ($gap > 0 && $gap < 300000) {
+                    $sessionms += $gap;
+                }
+                if ($gap > 0 && $gap < 5000) {
+                    $typingms += $gap;
+                }
+            }
+            $sessionseconds = $sessionms / 1000;
+            $typingseconds  = $typingms / 1000;
             if ($sessionseconds < 1) {
                 continue;
             }
@@ -2636,7 +2715,7 @@ class authory_tech_json_func_data extends external_api {
                     }
                 }
             }
-            $wpm = $charsinserted / 5.0 / ($sessionseconds / 60.0);
+            $wpm = $typingseconds < 1 ? 0 : $charsinserted / 5.0 / ($typingseconds / 60.0);
             $students[(int)$file->userid] = [
                 'person_id'        => (int)$file->userid,
                 'avg_wpm'          => round($wpm, 2),
@@ -2793,7 +2872,10 @@ class authory_tech_json_func_data extends external_api {
      * Compute session and typing durations from delta events in tiny_authory_tech_files.content.
      *
      * Returns ['session' => int, 'typing' => int] both in whole seconds.
-     * 'session' = max(t) − min(t) (full span, includes thinking pauses).
+     * 'session' = sum of consecutive inter-event gaps up to the window-closed threshold
+     * (5 min, matching windowClosedThresholdMs in type-server's analysis.go) — this
+     * excludes multi-session/multi-day breaks between keystrokes, which a naive
+     * max(t) - min(t) span would otherwise fold into "time spent."
      * 'typing'  = sum of consecutive inter-event gaps that are < 5 s (active keyboard time).
      * Returns ['session' => 0, 'typing' => 0] when data is missing or malformed.
      *
@@ -2815,15 +2897,18 @@ class authory_tech_json_func_data extends external_api {
             return ['session' => 0, 'typing' => 0];
         }
         sort($timestamps);
-        $sessionseconds = intval((max($timestamps) - min($timestamps)) / 1000);
+        $sessionms = 0;
         $typingms = 0;
         for ($i = 1, $n = count($timestamps); $i < $n; $i++) {
             $gap = $timestamps[$i] - $timestamps[$i - 1];
+            if ($gap > 0 && $gap < 300000) {
+                $sessionms += $gap;
+            }
             if ($gap > 0 && $gap < 5000) {
                 $typingms += $gap;
             }
         }
-        return ['session' => $sessionseconds, 'typing' => intval($typingms / 1000)];
+        return ['session' => intval($sessionms / 1000), 'typing' => intval($typingms / 1000)];
     }
 
     /**
