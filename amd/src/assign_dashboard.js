@@ -23,8 +23,78 @@
 
 define(
     ['jquery', 'core/chartjs', 'core/ajax', 'core/templates', 'tiny_authory_tech/replay',
-        'tiny_authory_tech/dashboard_metrics'],
-    function($, Chart, Ajax, Templates, Replay, DashboardMetrics) {
+        'tiny_authory_tech/dashboard_metrics', 'core/str'],
+    function($, Chart, Ajax, Templates, Replay, DashboardMetrics, Str) {
+
+    // Requested once in init() and resolved before any tab can be clicked (tabs
+    // don't exist in the DOM until the same $.when() block that fetches these
+    // resolves) — see STRING_REQUESTS/mapStrings below.
+    var STRINGS = {};
+
+    var STRING_REQUESTS = [
+        {key: 'dashboard_error_loading_student', component: 'tiny_authory_tech'},
+        {key: 'dashboard_failed_loading_student', component: 'tiny_authory_tech'},
+        {key: 'dashboard_typing_speed', component: 'tiny_authory_tech'},
+        {key: 'dashboard_words_per_minute', component: 'tiny_authory_tech'},
+        {key: 'dashboard_typing_speed_unavailable', component: 'tiny_authory_tech'},
+        {key: 'dashboard_wpm_vs_class_average', component: 'tiny_authory_tech'},
+        {key: 'dashboard_unusual_words', component: 'tiny_authory_tech'},
+        {key: 'dashboard_unusual_words_hint', component: 'tiny_authory_tech'},
+        {key: 'dashboard_no_unusual_words', component: 'tiny_authory_tech'},
+        {key: 'dashboard_pasted_text_detection', component: 'tiny_authory_tech'},
+        {key: 'dashboard_paste', component: 'tiny_authory_tech'},
+        {key: 'dashboard_go_to_text', component: 'tiny_authory_tech'},
+        {key: 'dashboard_no_paste_detected', component: 'tiny_authory_tech'},
+        {key: 'dashboard_student_submission', component: 'tiny_authory_tech'},
+        {key: 'dashboard_word_count_label', component: 'tiny_authory_tech'},
+        {key: 'dashboard_words_unit', component: 'tiny_authory_tech'},
+        {key: 'dashboard_typing_time_label', component: 'tiny_authory_tech'},
+        {key: 'dashboard_session_time_label', component: 'tiny_authory_tech'},
+        {key: 'dashboard_writing_replay', component: 'tiny_authory_tech'},
+        {key: 'dashboard_typing_speed_wpm_chart', component: 'tiny_authory_tech'},
+        {key: 'dashboard_class_average', component: 'tiny_authory_tech'},
+        {key: 'dashboard_words_per_minute_axis', component: 'tiny_authory_tech'},
+        {key: 'dashboard_time_spent_minutes_chart', component: 'tiny_authory_tech'},
+        {key: 'dashboard_minutes_axis', component: 'tiny_authory_tech'},
+        {key: 'dashboard_student_fallback', component: 'tiny_authory_tech'},
+    ];
+
+    /**
+     * Maps the positional array returned by Str.get_strings (same order as
+     * STRING_REQUESTS) into a named object.
+     *
+     * @param {string[]} strings
+     * @returns {Object}
+     */
+    function mapStrings(strings) {
+        return {
+            errorLoadingStudent: strings[0],
+            failedLoadingStudent: strings[1],
+            typingSpeed: strings[2],
+            wordsPerMinute: strings[3],
+            typingSpeedUnavailable: strings[4],
+            wpmVsClassAverage: strings[5],
+            unusualWords: strings[6],
+            unusualWordsHint: strings[7],
+            noUnusualWords: strings[8],
+            pastedTextDetection: strings[9],
+            paste: strings[10],
+            goToText: strings[11],
+            noPasteDetected: strings[12],
+            studentSubmission: strings[13],
+            wordCountLabel: strings[14],
+            wordsUnit: strings[15],
+            typingTimeLabel: strings[16],
+            sessionTimeLabel: strings[17],
+            writingReplay: strings[18],
+            typingSpeedWpmChart: strings[19],
+            classAverage: strings[20],
+            wordsPerMinuteAxis: strings[21],
+            timeSpentMinutesChart: strings[22],
+            minutesAxis: strings[23],
+            studentFallback: strings[24],
+        };
+    }
 
     /**
      * Highlight a word element in the essay: scroll to it and flash the animation.
@@ -111,10 +181,10 @@ define(
                 var stats = JSON.parse(json);
                 renderStudentPanel(panel, stats, enableReplay);
             } catch(e) {
-                panel.innerHTML = '<p style="color:#c00;padding:20px">Error loading student data.</p>';
+                panel.innerHTML = '<p style="color:#c00;padding:20px">' + escapeHtml(STRINGS.errorLoadingStudent) + '</p>';
             }
         }).fail(function() {
-            panel.innerHTML = '<p style="color:#c00;padding:20px">Failed to load student data.</p>';
+            panel.innerHTML = '<p style="color:#c00;padding:20px">' + escapeHtml(STRINGS.failedLoadingStudent) + '</p>';
         });
     }
 
@@ -138,6 +208,12 @@ define(
         var submText      = stats.submission_text || '';
         var filename      = stats.filename || '';
 
+        var comparisonText = typingSpeed.statsAvailable
+            ? STRINGS.wpmVsClassAverage
+                .replace('{diff}', typingSpeed.wpmDiffFormatted)
+                .replace('{avg}', typingSpeed.classAvgWpm)
+            : STRINGS.typingSpeedUnavailable;
+
         var html = '<div class="authory-student-card">'
             + '<h2 class="authory-student-name">' + escapeHtml(fullname) + '</h2>'
             + '</div>';
@@ -147,24 +223,24 @@ define(
 
         // Typing speed
         html += '<div class="authory-metric-card">'
-            + '<div class="authory-metric-icon">\u2328</div>'
+            + '<div class="authory-metric-icon">⌨</div>'
             + '<div class="authory-metric-body">'
-            + '<p class="authory-metric-title">Typing Speed</p>'
+            + '<p class="authory-metric-title">' + escapeHtml(STRINGS.typingSpeed) + '</p>'
             + '<span class="authory-big-number">' + typingSpeed.displayValue + '</span>'
-            + '<span class="authory-unit">words per minute</span>'
+            + '<span class="authory-unit">' + escapeHtml(STRINGS.wordsPerMinute) + '</span>'
             + '<div class="authory-progress-bar">'
             + '<div class="authory-progress-fill" style="width:' + typingSpeed.progressPct + '%"></div>'
             + '</div>'
-            + '<p class="authory-comparison ' + typingSpeed.comparisonClass + '">' + typingSpeed.comparisonText + '</p>'
+            + '<p class="authory-comparison ' + typingSpeed.comparisonClass + '">' + escapeHtml(comparisonText) + '</p>'
             + '</div></div>';
 
         // Unusual words
         html += '<div class="authory-metric-card">'
             + '<div class="authory-metric-icon">&#128269;</div>'
             + '<div class="authory-metric-body">'
-            + '<p class="authory-metric-title">Unusual Words</p>';
+            + '<p class="authory-metric-title">' + escapeHtml(STRINGS.unusualWords) + '</p>';
         if (unusualWords.length > 0) {
-            html += '<p class="authory-metric-hint">(click to highlight in text)</p>'
+            html += '<p class="authory-metric-hint">' + escapeHtml(STRINGS.unusualWordsHint) + '</p>'
                 + '<ul class="authory-word-list">';
             unusualWords.forEach(function(word, i) {
                 html += '<li class="authory-word-tag" onclick="authoryHighlight(\'unusual-' + i + '\')">'
@@ -172,7 +248,7 @@ define(
             });
             html += '</ul>';
         } else {
-            html += '<p class="authory-no-paste">No unusual words detected</p>';
+            html += '<p class="authory-no-paste">' + escapeHtml(STRINGS.noUnusualWords) + '</p>';
         }
         html += '</div></div>';
 
@@ -180,19 +256,19 @@ define(
         html += '<div class="authory-metric-card">'
             + '<div class="authory-metric-icon">&#128203;</div>'
             + '<div class="authory-metric-body">'
-            + '<p class="authory-metric-title">Pasted Text Detection</p>';
+            + '<p class="authory-metric-title">' + escapeHtml(STRINGS.pastedTextDetection) + '</p>';
         if (pastedTexts.length > 0) {
             pastedTexts.forEach(function(text, i) {
-                var preview = text.length > 80 ? text.substring(0, 80) + '\u2026' : text;
+                var preview = text.length > 80 ? text.substring(0, 80) + '…' : text;
                 html += '<div class="authory-paste-alert">'
-                    + '<p><strong>Paste ' + (i + 1) + '</strong>'
+                    + '<p><strong>' + escapeHtml(STRINGS.paste) + ' ' + (i + 1) + '</strong>'
                     + ' <a href="javascript:void(0)" class="authory-goto-link"'
-                    + ' onclick="authoryHighlight(\'pasted-' + i + '\')">(go to text)</a></p>'
+                    + ' onclick="authoryHighlight(\'pasted-' + i + '\')">' + escapeHtml(STRINGS.goToText) + '</a></p>'
                     + '<p>&ldquo;' + escapeHtml(preview) + '&rdquo;</p>'
                     + '</div>';
             });
         } else {
-            html += '<p class="authory-no-paste">&#10003; No pasted text detected</p>';
+            html += '<p class="authory-no-paste">&#10003; ' + escapeHtml(STRINGS.noPasteDetected) + '</p>';
         }
         html += '</div></div>';
 
@@ -204,11 +280,12 @@ define(
             var essayHtml = buildEssayHtml(submText, unusualWords, pastedTexts);
 
             html += '<div class="authory-essay-section">'
-                + '<h3 class="authory-essay-title">&#128221; Student Submission</h3>'
+                + '<h3 class="authory-essay-title">&#128221; ' + escapeHtml(STRINGS.studentSubmission) + '</h3>'
                 + '<div class="authory-essay-meta">'
-                + '<span><strong>Word count:</strong> ' + wordCount + ' words</span>'
-                + '<span><strong>Typing time:</strong> ' + typingStr + '</span>'
-                + '<span><strong>Session time:</strong> ' + sessionStr + '</span>'
+                + '<span><strong>' + escapeHtml(STRINGS.wordCountLabel) + '</strong> ' + wordCount
+                + ' ' + escapeHtml(STRINGS.wordsUnit) + '</span>'
+                + '<span><strong>' + escapeHtml(STRINGS.typingTimeLabel) + '</strong> ' + typingStr + '</span>'
+                + '<span><strong>' + escapeHtml(STRINGS.sessionTimeLabel) + '</strong> ' + sessionStr + '</span>'
                 + '</div>'
                 + '<div class="authory-essay-content">' + essayHtml + '</div>'
                 + '</div>';
@@ -217,7 +294,7 @@ define(
         // Replay section — containers must exist in DOM before Replay is instantiated.
         if (enableReplay && filename) {
             html += '<div class="authory-replay-section">'
-                + '<h3 class="authory-replay-title">&#9654; Writing Replay</h3>'
+                + '<h3 class="authory-replay-title">&#9654; ' + escapeHtml(STRINGS.writingReplay) + '</h3>'
                 + '<div id="player_' + userid + '" class="tiny_authory_tech_replay_control authory-replay-player">'
                 + '</div>'
                 + '<div id="content' + userid + '" class="authory-replay-output"></div>'
@@ -289,7 +366,7 @@ define(
             var esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             // \x01 guards paste markers; \x02 guards already-placed unusual markers.
             var re = new RegExp(
-                '(^|[^a-zA-Z\u00C0-\u017E\x01\x02])(' + esc + ')([^a-zA-Z\u00C0-\u017E\x01\x02]|$)',
+                '(^|[^a-zA-ZÀ-ž\x01\x02])(' + esc + ')([^a-zA-ZÀ-ž\x01\x02]|$)',
                 'i'
             );
             marked = marked.replace(re, function(m, pre, w, post) {
@@ -350,12 +427,15 @@ define(
                 return;
             }
 
+            var stringsCall = Str.get_strings(STRING_REQUESTS);
             var calls = Ajax.call([
                 {methodname: 'authory_tech_get_assign_dashboard_students', args: {cmid: cmid}},
                 {methodname: 'authory_tech_get_assign_overview_stats',     args: {cmid: cmid}},
             ]);
 
-            $.when(calls[0], calls[1]).done(function(studentsJson, overviewJson) {
+            $.when(stringsCall, calls[0], calls[1]).done(function(strings, studentsJson, overviewJson) {
+                STRINGS = mapStrings(strings);
+
                 var students = JSON.parse(studentsJson);
                 var overview = JSON.parse(overviewJson);
 
@@ -408,10 +488,13 @@ define(
                 // Charts — resolve names from Moodle students list
                 var statsStudents = overview.students || [];
                 var names  = statsStudents.map(function(s) {
-                    return nameMap[s.person_id] || ('Student ' + s.person_id);
+                    return nameMap[s.person_id] || (STRINGS.studentFallback + ' ' + s.person_id);
                 });
                 var speeds = statsStudents.map(function(s) { return Math.round(s.avg_wpm); });
-                var times  = statsStudents.map(function(s) { return Math.round(s.duration_seconds || 0); });
+                // Minutes, not seconds, and kept as a float — the chart displays
+                // fractional minutes (e.g. "10,2" in locales using a comma decimal
+                // separator) via formatMinutesLocale() rather than whole seconds.
+                var times  = statsStudents.map(function(s) { return (s.duration_seconds || 0) / 60; });
 
                 buildCharts(names, speeds, Math.round(overview.class_avg_wpm), times);
 
@@ -423,12 +506,32 @@ define(
     };
 
     /**
+     * Format a number of minutes using the page's current language (so the
+     * decimal separator matches — e.g. "10,2" in ca/es, "10.2" in en).
+     *
+     * @param {number} value
+     * @returns {string}
+     */
+    function formatMinutesLocale(value) {
+        // toLocaleString needs a valid BCP-47 tag (hyphens); language pack folder
+        // names like ca_valencia use an underscore, so normalize it. Still wrapped
+        // in try/catch as a last resort — an invalid tag must never break the
+        // whole chart render.
+        var lang = (document.documentElement.lang || 'en').replace('_', '-');
+        try {
+            return Number(value).toLocaleString(lang, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+        } catch (e) {
+            return Number(value).toFixed(1);
+        }
+    }
+
+    /**
      * Build typing-speed and time-spent charts.
      *
      * @param {string[]} names   Student display names
      * @param {number[]} speeds  WPM per student
      * @param {number}   avg     Class average WPM
-     * @param {number[]} times   Time spent in seconds per student
+     * @param {number[]} times   Time spent in minutes (fractional) per student
      */
     function buildCharts(names, speeds, avg, times) {
         var speedColors = speeds.map(function() { return 'rgba(35,79,194,0.8)'; });
@@ -448,14 +551,14 @@ define(
                     labels: names,
                     datasets: [
                         {
-                            label: 'Typing Speed (WPM)',
+                            label: STRINGS.typingSpeedWpmChart,
                             data: speeds,
                             backgroundColor: speedColors,
                             borderColor: speedBorders,
                             borderWidth: 2,
                         },
                         {
-                            label: 'Class Average',
+                            label: STRINGS.classAverage,
                             data: avgLine,
                             type: 'line',
                             borderColor: '#e07b00',
@@ -471,7 +574,7 @@ define(
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {legend: {display: true, position: 'top', labels: {usePointStyle: true}}},
-                    scales: {y: {beginAtZero: true, title: {display: true, text: 'Words Per Minute'}}}
+                    scales: {y: {beginAtZero: true, title: {display: true, text: STRINGS.wordsPerMinuteAxis}}}
                 }
             });
         }
@@ -484,14 +587,14 @@ define(
                     labels: names,
                     datasets: [
                         {
-                            label: 'Time Spent (seconds)',
+                            label: STRINGS.timeSpentMinutesChart,
                             data: times,
                             backgroundColor: timeColors,
                             borderColor: timeBorders,
                             borderWidth: 2,
                         },
                         {
-                            label: 'Class Average',
+                            label: STRINGS.classAverage,
                             data: avgTimeLine,
                             type: 'line',
                             borderColor: '#e07b00',
@@ -506,8 +609,25 @@ define(
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {legend: {display: true, position: 'top', labels: {usePointStyle: true}}},
-                    scales: {y: {beginAtZero: true, title: {display: true, text: 'Seconds'}}}
+                    plugins: {
+                        legend: {display: true, position: 'top', labels: {usePointStyle: true}},
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatMinutesLocale(context.parsed.y);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {display: true, text: STRINGS.minutesAxis},
+                            ticks: {callback: function(value) {
+                                return formatMinutesLocale(value);
+                            }}
+                        }
+                    }
                 }
             });
         }

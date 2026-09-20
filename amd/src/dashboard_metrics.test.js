@@ -17,7 +17,7 @@ describe('formatDuration', () => {
 });
 
 describe('resolveTypingSpeedDisplay', () => {
-    test('stats_available true renders the real WPM and comparison', () => {
+    test('stats_available true renders the real WPM and comparison figures', () => {
         const result = resolveTypingSpeedDisplay({
             stats_available: true,
             avg_wpm: 42.4,
@@ -26,20 +26,22 @@ describe('resolveTypingSpeedDisplay', () => {
         });
         expect(result.statsAvailable).toBe(true);
         expect(result.displayValue).toBe(42);
-        expect(result.comparisonText).toBe('+4.4 WPM vs class average (38 WPM)');
+        // Raw pieces, not a pre-built sentence — the caller (which has access to
+        // core/str) composes the translatable comparison text from these.
+        expect(result.wpmDiffFormatted).toBe('+4.4');
+        expect(result.classAvgWpm).toBe(38);
     });
 
     // This is the exact live bug: type-server's DB was down and returned an
     // error response — the dashboard must show "unavailable", never a
     // misleading "0 words per minute".
-    test('stats_available false renders an em dash and an unavailable message, never 0', () => {
+    test('stats_available false renders an em dash, never 0', () => {
         const result = resolveTypingSpeedDisplay({
             stats_available: false,
         });
         expect(result.statsAvailable).toBe(false);
         expect(result.displayValue).toBe('—');
         expect(result.displayValue).not.toBe(0);
-        expect(result.comparisonText).toBe('Typing speed unavailable');
     });
 
     test('missing stats_available field is treated as unavailable', () => {

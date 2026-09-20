@@ -39,16 +39,22 @@
     }
 
     /**
-     * Resolves the "Typing Speed" card's display value and comparison text from
+     * Resolves the "Typing Speed" card's display value and comparison figures from
      * a raw stats object (the JSON response of authory_tech_get_student_stats).
      *
      * When stats.stats_available is false (type-server couldn't be reached, or
      * returned an error), avg_wpm/class_avg_wpm/wpm_diff are meaningless — this
      * renders an explicit "unavailable" state instead of a misleading "0 WPM".
      *
+     * Deliberately returns raw numbers/flags rather than a pre-built English
+     * sentence: this module stays framework-independent (no Moodle string API
+     * dependency), so the caller (assign_dashboard.js, which has access to
+     * core/str) is the one that composes the final, translatable comparison text.
+     *
      * @param {Object} stats Raw stats object from authory_tech_get_student_stats
      * @returns {{statsAvailable: boolean, displayValue: (number|string),
-     *           comparisonText: string, comparisonClass: string, progressPct: number}}
+     *           wpmDiffFormatted: string, classAvgWpm: number,
+     *           comparisonClass: string, progressPct: number}}
      */
     function resolveTypingSpeedDisplay(stats) {
         stats = stats || {};
@@ -60,9 +66,6 @@
         var absDiff  = Math.abs(wpmDiff);
         var comparisonClass = absDiff < 5 ? 'deviation-low' : (absDiff < 15 ? 'deviation-medium' : 'deviation-high');
         var sign     = wpmDiff >= 0 ? '+' : '';
-        var comparisonText = statsAvailable
-            ? (sign + wpmDiff.toFixed(1) + ' WPM vs class average (' + classAvgWpm + ' WPM)')
-            : 'Typing speed unavailable';
 
         var progressPct = classAvgWpm > 0
             ? Math.min(100, Math.round(wpm / (classAvgWpm * 2) * 100))
@@ -71,7 +74,8 @@
         return {
             statsAvailable: statsAvailable,
             displayValue: statsAvailable ? wpm : '—',
-            comparisonText: comparisonText,
+            wpmDiffFormatted: sign + wpmDiff.toFixed(1),
+            classAvgWpm: classAvgWpm,
             comparisonClass: comparisonClass,
             progressPct: progressPct,
         };
