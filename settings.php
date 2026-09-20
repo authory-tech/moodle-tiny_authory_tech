@@ -207,20 +207,27 @@ if ($ADMIN->fulltree) {
             1
         )
     );
+    $settings->add(
+        new admin_setting_configcheckbox(
+            'tiny_authory_tech/enable_state_popup',
+            get_string('enable_state_popup', "tiny_authory_tech"),
+            get_string('enable_state_popup_desc', 'tiny_authory_tech'),
+            1
+        )
+    );
 
     $settings->add(
         new admin_setting_heading(
             'authory_tech_queue_heading',
-            'Keystroke queue (SQS)',
-            'When configured, the cron task publishes keystroke data to this Scaleway SQS queue ' .
-            'instead of calling the type-server directly. Leave blank to keep the HTTP upload path.'
+            get_string('queue_heading', 'tiny_authory_tech'),
+            get_string('queue_heading_desc', 'tiny_authory_tech')
         )
     );
     $settings->add(
         new admin_setting_configtext(
             'tiny_authory_tech/queue_url',
-            'SQS Queue URL',
-            'Full queue URL from Scaleway (e.g. https://sqs.mnq.fr-par.scaleway.com/&lt;project-id&gt;/&lt;client&gt;-keystrokes).',
+            get_string('queue_url', 'tiny_authory_tech'),
+            get_string('queue_url_desc', 'tiny_authory_tech'),
             '',
             PARAM_TEXT
         )
@@ -228,8 +235,8 @@ if ($ADMIN->fulltree) {
     $settings->add(
         new admin_setting_configtext(
             'tiny_authory_tech/queue_access_key',
-            'SQS Access Key',
-            'QUEUE_ACCESS_KEY from the Scaleway MNQ credentials.',
+            get_string('queue_access_key', 'tiny_authory_tech'),
+            get_string('queue_access_key_desc', 'tiny_authory_tech'),
             '',
             PARAM_TEXT
         )
@@ -237,8 +244,8 @@ if ($ADMIN->fulltree) {
     $settings->add(
         new admin_setting_configpasswordunmask(
             'tiny_authory_tech/queue_secret_key',
-            'SQS Secret Key',
-            'QUEUE_SECRET_KEY from the Scaleway MNQ credentials.',
+            get_string('queue_secret_key', 'tiny_authory_tech'),
+            get_string('queue_secret_key_desc', 'tiny_authory_tech'),
             ''
         )
     );

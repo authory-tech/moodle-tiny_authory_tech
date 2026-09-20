@@ -1,0 +1,241 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Parameter \#1 \$modulename of function get_coursemodule_from_id expects string, false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: assign_dashboard.php
+
+		-
+			message: '#^Constant DAY_SECS not found\.$#'
+			identifier: constant.notFound
+			count: 3
+			path: classes/constants.php
+
+		-
+			message: '#^Parameter \#1 \$qubaid of static method question_engine\:\:load_questions_usage_by_activity\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/constants.php
+
+		-
+			message: '#^Parameter \#1 \$slot of method question_usage_by_activity\:\:get_question\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/constants.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: classes/constants.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: classes/constants.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between false and ''0'' will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: classes/constants.php
+
+		-
+			message: '#^Method tiny_authory_tech\\local\\page\\visualization\:\:prepare_data\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: classes/local/page/visualization.php
+
+		-
+			message: '#^Parameter \#2 \$type of class xmldb_index constructor expects string\|null, false given\.$#'
+			identifier: argument.type
+			count: 12
+			path: db/upgrade.php
+
+		-
+			message: '#^Parameter \#2 \$type of class xmldb_index constructor expects string\|null, true given\.$#'
+			identifier: argument.type
+			count: 1
+			path: db/upgrade.php
+
+		-
+			message: '#^Parameter \#3 \$precision of class xmldb_field constructor expects string\|null, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: db/upgrade.php
+
+		-
+			message: '#^Default value of the parameter \#5 \$jsondata \(array\) of method authory_tech_json_func_data\:\:write_local_to_json\(\) is incompatible with type string\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Method authory_tech_json_func_data\:\:authory_tech_get_analytics_returns\(\) should return core_external\\external_function_parameters but returns core_external\\external_single_structure\.$#'
+			identifier: return.type
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Method authory_tech_json_func_data\:\:authory_tech_store_writing_differencs_returns\(\) should return core_external\\external_function_parameters but returns core_external\\external_single_structure\.$#'
+			identifier: return.type
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 3
+			path: externallib.php
+
+		-
+			message: '#^Parameter \#1 \$qubaid of static method question_engine\:\:load_questions_usage_by_activity\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Parameter \#1 \$slot of method question_usage_by_activity\:\:get_question\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Variable \$filename might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: externallib.php
+
+		-
+			message: '#^Call to an undefined method moodleform\:\:get_current\(\)\.$#'
+			identifier: method.notFound
+			count: 4
+			path: lib.php
+
+		-
+			message: '#^Function tiny_authory_tech_upload_multipart_record\(\) never returns string so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: lib.php
+
+		-
+			message: '#^Parameter \#1 \$modulename of function get_coursemodule_from_id expects string, false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: lib.php
+
+		-
+			message: '#^Variable \$tempfilepath in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 1
+			path: lib.php
+
+		-
+			message: '#^Call to an undefined method core\\output\\renderer_base\:\:timer_report\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: locallib.php
+
+		-
+			message: '#^Default value of the parameter \#6 \$perpage \(string\) of function tiny_authory_tech_get_user_writing_data\(\) is incompatible with type int\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: locallib.php
+
+		-
+			message: '#^Default value of the parameter \#7 \$limit \(string\) of function tiny_authory_tech_get_user_writing_data\(\) is incompatible with type int\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: locallib.php
+
+		-
+			message: '#^Call to an undefined method core\\output\\renderer_base\:\:paging_bar\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: renderer.php
+
+		-
+			message: '#^Call to an undefined method core\\output\\renderer_base\:\:pix_icon\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: renderer.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 2
+			path: renderer.php
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: renderer.php
+
+		-
+			message: '#^Using nullsafe property access on non\-nullable type mixed\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: renderer.php
+
+		-
+			message: '#^Variable \$courseid in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 1
+			path: renderer.php
+
+		-
+			message: '#^Variable \$courseid might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: renderer.php
+
+		-
+			message: '#^Parameter \#4 \$defaultsetting of class admin_setting_configcheckbox constructor expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: settings.php
+
+		-
+			message: '#^Parameter \#4 \$defaultsetting of class admin_setting_configtext constructor expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: settings.php
+
+		-
+			message: '#^Call to method PHPUnit\\Framework\\Assert\:\:assertIsArray\(\) with array\{''append_fourm_post'', ''forum''\}\|array\{''append_lesson_grade…'', ''lesson''\}\|array\{''append_participants…'', ''course''\}\|array\{''append_pdfannotator'', ''pdfannotator''\}\|array\{''append_submissions…''\|''inject_assign…''\|''show_url_in…'', ''assign''\}\|array\{''show_url_in_quiz…'', ''quiz''\} and ''BODY_IDS\[page…''\|''BODY_IDS\[page\-mod…'' will always evaluate to true\.$#'
+			identifier: method.alreadyNarrowedType
+			count: 1
+			path: tests/constants_test.php
+
+		-
+			message: '#^Call to method PHPUnit\\Framework\\Assert\:\:assertNotEmpty\(\) with ''append_fourm_post''\|''append_lesson_grade…''\|''append_participants…''\|''append_pdfannotator''\|''append_submissions…''\|''inject_assign…''\|''show_url_in_quiz…''\|''show_url_in…'' and ''BODY_IDS\[page…''\|''BODY_IDS\[page\-mod…'' will always evaluate to true\.$#'
+			identifier: method.alreadyNarrowedType
+			count: 1
+			path: tests/constants_test.php
+
+		-
+			message: '#^Call to method PHPUnit\\Framework\\Assert\:\:assertNotEmpty\(\) with ''assign''\|''course''\|''forum''\|''lesson''\|''pdfannotator''\|''quiz'' and ''BODY_IDS\[page…''\|''BODY_IDS\[page\-mod…'' will always evaluate to true\.$#'
+			identifier: method.alreadyNarrowedType
+			count: 1
+			path: tests/constants_test.php
+
+		-
+			message: '#^Call to an undefined method core_privacy\\local\\request\\content_writer\:\:has_any_data\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/privacy/provider_test.php
+
+		-
+			message: '#^Parameter \#3 \$contextids of class core_privacy\\local\\request\\approved_contextlist constructor expects array\<int\>, array\<int, int\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/privacy/provider_test.php

@@ -195,12 +195,11 @@ function tiny_authory_tech_get_user_writing_data(
     if ($limit) {
         $getdetailcount = $DB->get_records_sql($select, $params);
         $totalcount = count($getdetailcount);
-        $select .= " LIMIT ?, ?";
-        $params[] = $perpage;
-        $params[] = $limit;
+        $res = $DB->get_records_sql($select, $params, $perpage, $limit);
+    } else {
+        $res = $DB->get_records_sql($select, $params);
     }
 
-    $res = $DB->get_records_sql($select, $params);
     $resncount = ['count' => $totalcount, 'data' => $res];
 
     return $resncount;

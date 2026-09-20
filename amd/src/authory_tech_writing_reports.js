@@ -23,7 +23,7 @@
  */
 
 define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './analytic_button', './replay_button',
-"./analytic_events", "core/modal_events", 'core/modal_save_cancel', 'core/modal_factory', 'core/modal'],
+"./analytic_events", "core/modal_events", 'core/modal_save_cancel', 'core/modal'],
     function(
     $,
     AJAX,
@@ -35,7 +35,6 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
     AnalyticEvents,
     Events,
     Modal,
-    Factory,
     Alert
 ) {
     const replayInstances = {};
@@ -124,7 +123,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                     const link1 = $(this).attr('href');
                     const link2 = $(this).data('link');
 
-                    let type = Factory.types.SAVE_CANCEL;
+                    let type = 'SAVE_CANCEL';
                     let optionModal = Modal;
                     let select = document.createElement('select');
                     select.id = "download-type";
@@ -164,7 +163,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                             const noOptionText = await str.get_string('no_option', 'tiny_authory_tech');
                             const messageText = await str.get_string('message', 'tool_dataprivacy');
                             title = messageText;
-                            type = Factory.types.ALERT;
+                            type = 'ALERT';
                             optionModal = Alert;
                             select = noOptionText;
                         } catch (error) {
@@ -177,7 +176,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                         title: title,
                         body: select,
                         removeOnClose: true,
-                        buttons: type === Factory.types.SAVE_CANCEL ? [{
+                        buttons: type === 'SAVE_CANCEL' ? [{
                             text: 'OK',
                             type: 'submit',
                             primary: true
@@ -185,7 +184,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                     }).then(modal => {
                         modal.show();
 
-                        if (type === Factory.types.SAVE_CANCEL) {
+                        if (type === 'SAVE_CANCEL') {
                             modal.getRoot().on(Events.save, function() {
                                 const data = document.getElementById('download-type');
                                 if (!data) {

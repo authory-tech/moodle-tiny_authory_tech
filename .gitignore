@@ -16,3 +16,5 @@ licenses-init.sql
 purge_cache.sh
 
 feedback.txt
+phpstan.neon
+node_modules

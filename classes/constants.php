@@ -271,6 +271,21 @@ class constants {
         return (bool)$config;
     }
 
+    /**
+     * Flag indicating whether to show the "Authory.tech is active" popup once per session.
+     * Controlled via plugin configuration setting.
+     * @return bool Whether to show the active-state popup
+     */
+    public static function enable_state_popup() {
+        $config = get_config('tiny_authory_tech', 'enable_state_popup');
+        // If not set, default to true.
+        if ($config === false) {
+            return true;
+        }
+        // Otherwise return the configured value (1 for true, 0 for false).
+        return (bool)$config;
+    }
+
 
     /**
      * Check if the authory_tech functionality is active for the current page/context
