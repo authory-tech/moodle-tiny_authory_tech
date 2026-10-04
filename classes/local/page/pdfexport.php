@@ -154,7 +154,8 @@ class pdfexport {
     private function prepare_data($userid, $fileid) {
         global $DB;
 
-        $sql = "SELECT CONCAT(u.firstname,' ',u.lastname) AS username, f.userid,
+        $username = $DB->sql_concat('u.firstname', "' '", 'u.lastname');
+        $sql = "SELECT $username AS username, f.userid,
                        f.modulename, f.timemodified, f.resourceid, f.questionid, w.*, d.meta as effort, d.submitted_text
                   FROM {tiny_authory_tech_files} f
                   JOIN {tiny_authory_tech_user_writing} w ON f.id = w.file_id

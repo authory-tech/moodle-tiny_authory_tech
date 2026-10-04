@@ -158,7 +158,8 @@ class visualization {
     private function get_course_analytics($course, $cmid) {
         global $DB;
 
-        $sql = "SELECT f.id as fileid, CONCAT(u.firstname,' ',u.lastname) AS username,
+        $username = $DB->sql_concat('u.firstname', "' '", 'u.lastname');
+        $sql = "SELECT f.id as fileid, $username AS username,
                        f.userid, w.*, d.meta as effort
                   FROM {tiny_authory_tech_files} f
              LEFT JOIN {tiny_authory_tech_user_writing} w ON f.id = w.file_id

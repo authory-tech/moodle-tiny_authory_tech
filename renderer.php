@@ -310,10 +310,11 @@ class tiny_authory_tech_renderer extends plugin_renderer_base {
      */
     public function generate_custom_title($cm, $user, $DB, &$module) {
         if ($cm->modname === 'forum') {
+            $replytitle = $DB->sql_concat('pp.subject', "' / '", 'p.subject');
             $sql = "SELECT cp.resourceid, p.parent,
                            CASE
                                 WHEN p.parent = 0 THEN p.subject
-                                ELSE CONCAT(pp.subject, ' / ', p.subject)
+                                ELSE $replytitle
                            END AS title
                       FROM {tiny_authory_tech_files} cp
                  LEFT JOIN {forum_posts} p ON cp.resourceid = p.id

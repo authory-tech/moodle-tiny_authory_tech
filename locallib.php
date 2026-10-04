@@ -24,6 +24,7 @@
  */
 use core_external\util;
 use tiny_authory_tech\constants;
+use tiny_authory_tech\helper;
 /**
  * Get user attempts data from the database
  *
@@ -87,122 +88,35 @@ function tiny_authory_tech_get_user_attempts_data(
         $params['cmid'] = $moduleid;
     }
 
-    $sql .= " GROUP BY uf.id, u.id, uw.id, u.firstname, u.lastname, u.email,
-                       uf.courseid, uf.timemodified, uf.cmid, uf.filename,
-                       uw.total_time_seconds, uw.key_count, uw.keys_per_minute,
-                       uw.character_count, uw.characters_per_minute, uw.word_count,
-                       uw.words_per_minute, uw.backspace_percent, uw.score, uw.copy_behavior ";
+    // Count before ORDER BY is appended: not every database accepts ORDER BY in a subquery.
+    $countsql = "SELECT COUNT(1)
+                   FROM ($sql) subquery";
+    $totalcount = $DB->count_records_sql($countsql, $params);
 
     switch ($orderby) {
         case 'name':
-            $sql .= 'ORDER BY u.firstname ASC';
+            $sql .= ' ORDER BY u.firstname ASC';
             break;
         case 'email':
-            $sql .= 'ORDER BY u.email ASC';
+            $sql .= ' ORDER BY u.email ASC';
             break;
         case 'date':
-            $sql .= 'ORDER BY uf.timemodified ASC';
+            $sql .= ' ORDER BY uf.timemodified ASC';
             break;
         default:
-            $sql .= 'ORDER BY u.id ASC';
+            $sql .= ' ORDER BY u.id ASC';
             break;
     }
 
-    $countsql = "SELECT COUNT(*)
-                        FROM ($sql) subquery";
-    $totalcount = $DB->count_records_sql($countsql, $params);
-
-    if ($limit) {
-        $sql .= " LIMIT " . $limit;
-        if ($page) {
-            $offset = $page * $limit;
-            $sql .= " OFFSET " . $offset;
-        }
-    }
+    // Let the DML layer paginate: LIMIT/OFFSET syntax differs between databases.
+    $limitfrom = $limit ? $page * $limit : 0;
     try {
-        $res = $DB->get_records_sql($sql, $params);
+        $res = $DB->get_records_sql($sql, $params, $limitfrom, (int) $limit);
     } catch (moodle_exception $e) {
         throw new moodle_exception('dmlreadexception', 'error', '', null, $e->getMessage());
     }
 
     return ['count' => $totalcount, 'data' => $res];
-}
-
-/**
- * Get user writing data from the database with pagination
- *
- * @param int $userid The user ID to get writing data for (0 for all users)
- * @param int $courseid The course ID to filter by (0 for all courses)
- * @param int $moduleid The module ID to filter by (0 for all modules)
- * @param string $orderby Field to order results by (id, name, email, date)
- * @param string $order Sort order (ASC or DESC)
- * @param int $perpage Number of records to skip (for pagination)
- * @param int $limit Maximum number of records to return
- * @return array Array containing total count and data records
- * @throws dml_exception
- */
-function tiny_authory_tech_get_user_writing_data(
-    $userid = 0,
-    $courseid = 0,
-    $moduleid = 0,
-    $orderby = 'id',
-    $order = 'ASC',
-    $perpage = '',
-    $limit = ''
-) {
-    global $DB;
-
-    $params = [];
-    $select = "SELECT uf.id AS fileid, u.id AS usrid, uw.id AS uniqueid,
-                      u.firstname, u.email, uf.courseid, uf.resourceid AS attemptid, uf.timemodified,
-                      uf.cmid AS cmid, uf.filename,
-                      uw.total_time_seconds AS total_time_seconds,
-                      uw.key_count AS key_count,
-                      uw.keys_per_minute AS keys_per_minute,
-                      uw.character_count AS character_count,
-                      uw.characters_per_minute AS characters_per_minute,
-                      uw.word_count AS word_count,
-                      uw.words_per_minute AS words_per_minute,
-                      uw.backspace_percent AS backspace_percent,
-                      uw.score AS score,
-                      uw.copy_behavior AS copy_behavior
-                FROM {tiny_authory_tech_files} uf
-                JOIN {user} u ON uf.userid = u.id
-           LEFT JOIN {tiny_authory_tech_user_writing} uw ON uw.file_id = uf.id
-               WHERE uf.userid != ?";
-
-    $params[] = guest_user()->id; // Exclude user ID 1.
-
-    if ($userid != 0) {
-        $select .= " AND uf.userid = ?";
-        $params[] = $userid;
-    }
-    if ($courseid != 0) {
-        $select .= " AND uf.courseid = ?";
-        $params[] = $courseid;
-    }
-    if ($moduleid != 0) {
-        $select .= " AND uf.cmid = ?";
-        $params[] = $moduleid;
-    }
-
-    $select .= " ORDER BY ? ?";
-    $params[] =
-        $orderby === 'id' ? 'u.id' : ($orderby === 'name' ? 'u.firstname' : ($orderby === 'email' ? 'u.email' : 'uf.timemodified'));
-    $params[] = $order;
-
-    $totalcount = 0;
-    if ($limit) {
-        $getdetailcount = $DB->get_records_sql($select, $params);
-        $totalcount = count($getdetailcount);
-        $res = $DB->get_records_sql($select, $params, $perpage, $limit);
-    } else {
-        $res = $DB->get_records_sql($select, $params);
-    }
-
-    $resncount = ['count' => $totalcount, 'data' => $res];
-
-    return $resncount;
 }
 
 /**
@@ -306,17 +220,8 @@ function tiny_authory_tech_get_user_submissions_data($userid, $modulename, $cmid
     }
 
     if (isset($data['filename']) && $data['filename']) {
-        $sql = 'SELECT id as fileid
-                  FROM {tiny_authory_tech_files}
-                 WHERE userid = :userid ORDER BY id ASC LIMIT 1';
-
-        $ffile = $DB->get_record_sql($sql, ['userid' => $userid]);
-        $ffile = (array)$ffile;
-        if ($ffile['fileid'] == $data['file_id']) {
-            $data['first_file'] = 1;
-        } else {
-            $data['first_file'] = 0;
-        }
+        $firstfileid = helper::get_user_first_file_id((int) $userid);
+        $data['first_file'] = ($firstfileid !== null && $firstfileid == $data['file_id']) ? 1 : 0;
     }
 
     $res = $data;
