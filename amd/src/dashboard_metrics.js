@@ -1,41 +1,51 @@
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+
 /**
  * Pure, framework-independent display logic for the teacher writing-analytics
  * dashboard, extracted out of assign_dashboard.js so it can be unit-tested
- * directly (see dashboard_metrics.test.js) without a browser, jQuery, or a
- * running Moodle instance.
- *
- * UMD-wrapped: works as an AMD module (Moodle/RequireJS) and as a CommonJS
- * module (Jest), from the same source.
+ * directly (see tests/js/dashboard_metrics.test.js) without a browser, jQuery,
+ * or a running Moodle instance.
  *
  * @module     tiny_authory_tech/dashboard_metrics
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.tinyAuthoryTechDashboardMetrics = factory();
-    }
-}(typeof self !== 'undefined' ? self : this, function() {
+define([], function() {
     'use strict';
 
     /**
      * Format a duration in seconds as a human-readable string.
      * Shows seconds when under a minute, otherwise whole minutes.
+     *
+     * The unit wording is passed in as localised strings with a {$a} placeholder
+     * (e.g. "{$a} sec"), so this module stays free of the Moodle string API.
+     *
      * @param {number} seconds
+     * @param {{seconds: string, minutes: string}} units Localised "{$a} sec" / "{$a} min" templates
      * @returns {string}
      */
-    function formatDuration(seconds) {
+    function formatDuration(seconds, units) {
         if (!seconds || seconds <= 0) {
             return '—';
         }
         if (seconds < 60) {
-            return Math.round(seconds) + ' sec';
+            return units.seconds.replace('{$a}', Math.round(seconds));
         }
-        return Math.round(seconds / 60) + ' min';
+        return units.minutes.replace('{$a}', Math.round(seconds / 60));
     }
 
     /**
@@ -85,4 +95,4 @@
         formatDuration: formatDuration,
         resolveTypingSpeedDisplay: resolveTypingSpeedDisplay,
     };
-}));
+});

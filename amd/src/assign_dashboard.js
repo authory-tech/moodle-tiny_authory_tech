@@ -28,81 +28,49 @@ define(
 
     // Requested once in init() and resolved before any tab can be clicked (tabs
     // don't exist in the DOM until the same $.when() block that fetches these
-    // resolves) — see STRING_REQUESTS/mapStrings below.
+    // resolves). Labels inside a student's panel come from its Mustache template.
     var STRINGS = {};
 
-    var STRING_REQUESTS = [
-        {key: 'dashboard_error_loading_student', component: 'tiny_authory_tech'},
-        {key: 'dashboard_failed_loading_student', component: 'tiny_authory_tech'},
-        {key: 'dashboard_typing_speed', component: 'tiny_authory_tech'},
-        {key: 'dashboard_words_per_minute', component: 'tiny_authory_tech'},
-        {key: 'dashboard_typing_speed_unavailable', component: 'tiny_authory_tech'},
-        {key: 'dashboard_wpm_vs_class_average', component: 'tiny_authory_tech'},
-        {key: 'dashboard_unusual_words', component: 'tiny_authory_tech'},
-        {key: 'dashboard_unusual_words_hint', component: 'tiny_authory_tech'},
-        {key: 'dashboard_no_unusual_words', component: 'tiny_authory_tech'},
-        {key: 'dashboard_pasted_text_detection', component: 'tiny_authory_tech'},
-        {key: 'dashboard_paste', component: 'tiny_authory_tech'},
-        {key: 'dashboard_go_to_text', component: 'tiny_authory_tech'},
-        {key: 'dashboard_no_paste_detected', component: 'tiny_authory_tech'},
-        {key: 'dashboard_student_submission', component: 'tiny_authory_tech'},
-        {key: 'dashboard_word_count_label', component: 'tiny_authory_tech'},
-        {key: 'dashboard_words_unit', component: 'tiny_authory_tech'},
-        {key: 'dashboard_typing_time_label', component: 'tiny_authory_tech'},
-        {key: 'dashboard_session_time_label', component: 'tiny_authory_tech'},
-        {key: 'dashboard_writing_replay', component: 'tiny_authory_tech'},
-        {key: 'dashboard_typing_speed_wpm_chart', component: 'tiny_authory_tech'},
-        {key: 'dashboard_class_average', component: 'tiny_authory_tech'},
-        {key: 'dashboard_words_per_minute_axis', component: 'tiny_authory_tech'},
-        {key: 'dashboard_time_spent_minutes_chart', component: 'tiny_authory_tech'},
-        {key: 'dashboard_minutes_axis', component: 'tiny_authory_tech'},
-        {key: 'dashboard_student_fallback', component: 'tiny_authory_tech'},
-    ];
+    var STRING_KEYS = {
+        errorLoadingStudent: 'dashboard_error_loading_student',
+        failedLoadingStudent: 'dashboard_failed_loading_student',
+        typingSpeedUnavailable: 'dashboard_typing_speed_unavailable',
+        wpmVsClassAverage: 'dashboard_wpm_vs_class_average',
+        unusualWordTitle: 'dashboard_unusual_word_title',
+        durationSeconds: 'dashboard_duration_seconds',
+        durationMinutes: 'dashboard_duration_minutes',
+        typingSpeedWpmChart: 'dashboard_typing_speed_wpm_chart',
+        classAverage: 'dashboard_class_average',
+        wordsPerMinuteAxis: 'dashboard_words_per_minute_axis',
+        timeSpentMinutesChart: 'dashboard_time_spent_minutes_chart',
+        minutesAxis: 'dashboard_minutes_axis',
+        studentFallback: 'dashboard_student_fallback',
+    };
 
     /**
-     * Maps the positional array returned by Str.get_strings (same order as
-     * STRING_REQUESTS) into a named object.
+     * Load every string in STRING_KEYS.
      *
-     * @param {string[]} strings
-     * @returns {Object}
+     * @returns {Promise} Resolves with an object of the same shape as STRING_KEYS.
      */
-    function mapStrings(strings) {
-        return {
-            errorLoadingStudent: strings[0],
-            failedLoadingStudent: strings[1],
-            typingSpeed: strings[2],
-            wordsPerMinute: strings[3],
-            typingSpeedUnavailable: strings[4],
-            wpmVsClassAverage: strings[5],
-            unusualWords: strings[6],
-            unusualWordsHint: strings[7],
-            noUnusualWords: strings[8],
-            pastedTextDetection: strings[9],
-            paste: strings[10],
-            goToText: strings[11],
-            noPasteDetected: strings[12],
-            studentSubmission: strings[13],
-            wordCountLabel: strings[14],
-            wordsUnit: strings[15],
-            typingTimeLabel: strings[16],
-            sessionTimeLabel: strings[17],
-            writingReplay: strings[18],
-            typingSpeedWpmChart: strings[19],
-            classAverage: strings[20],
-            wordsPerMinuteAxis: strings[21],
-            timeSpentMinutesChart: strings[22],
-            minutesAxis: strings[23],
-            studentFallback: strings[24],
-        };
+    function loadStrings() {
+        var names = Object.keys(STRING_KEYS);
+        return Str.get_strings(names.map(function(name) {
+            return {key: STRING_KEYS[name], component: 'tiny_authory_tech'};
+        })).then(function(strings) {
+            var loaded = {};
+            names.forEach(function(name, i) {
+                loaded[name] = strings[i];
+            });
+            return loaded;
+        });
     }
 
     /**
      * Highlight a word element in the essay: scroll to it and flash the animation.
-     * Exposed globally so inline onclick handlers in the template can call it.
      *
      * @param {string} elementId
      */
-    window.authoryHighlight = function(elementId) {
+    function highlightElement(elementId) {
         var el = document.getElementById(elementId);
         if (!el) {
             return;
@@ -112,7 +80,20 @@ define(
         setTimeout(function() {
             el.classList.remove('flash');
         }, 1500);
-    };
+    }
+
+    /**
+     * Replace a student panel's contents with an error message.
+     *
+     * @param {Element} panel
+     * @param {string} message
+     */
+    function showPanelError(panel, message) {
+        var alert = document.createElement('div');
+        alert.className = 'alert alert-danger m-3';
+        alert.textContent = message;
+        panel.replaceChildren(alert);
+    }
 
     /**
      * Build student tab button and empty content panel.
@@ -141,7 +122,9 @@ define(
 
         Templates.render('tiny_authory_tech/assign_dashboard_student_loading', {fullname: student.fullname})
             .then(function(html) {
-                panel.innerHTML = html;
+                if (panel.dataset.rendered !== '1') {
+                    panel.innerHTML = html;
+                }
                 return true;
             }).catch(function(error) {
                 window.console.error('Failed to render template:', error);
@@ -177,14 +160,19 @@ define(
         }]);
 
         call[0].done(function(json) {
+            var stats;
             try {
-                var stats = JSON.parse(json);
-                renderStudentPanel(panel, stats, enableReplay);
-            } catch(e) {
-                panel.innerHTML = '<p style="color:#c00;padding:20px">' + escapeHtml(STRINGS.errorLoadingStudent) + '</p>';
+                stats = JSON.parse(json);
+            } catch (e) {
+                showPanelError(panel, STRINGS.errorLoadingStudent);
+                return;
             }
+            renderStudentPanel(panel, stats, enableReplay).catch(function(error) {
+                window.console.error('Failed to render student panel:', error);
+                showPanelError(panel, STRINGS.errorLoadingStudent);
+            });
         }).fail(function() {
-            panel.innerHTML = '<p style="color:#c00;padding:20px">' + escapeHtml(STRINGS.failedLoadingStudent) + '</p>';
+            showPanelError(panel, STRINGS.failedLoadingStudent);
         });
     }
 
@@ -193,119 +181,64 @@ define(
      * @param {Element} panel
      * @param {Object}  stats        Response from authory_tech_get_student_stats
      * @param {boolean} enableReplay Whether the replay feature is enabled
+     * @returns {Promise} Resolves once the panel is in the DOM.
      */
     function renderStudentPanel(panel, stats, enableReplay) {
-        var fullname       = panel.dataset.fullname || '';
         var userid         = panel.dataset.userid || '';
         // stats_available is false when type-server couldn't compute real stats
         // (e.g. its database is unreachable) — resolveTypingSpeedDisplay renders
         // "unavailable" in that case rather than a misleading 0.
-        var typingSpeed = DashboardMetrics.resolveTypingSpeedDisplay(stats);
-        var sessionStr  = DashboardMetrics.formatDuration(stats.duration_seconds || 0);
-        var typingStr   = DashboardMetrics.formatDuration(stats.typing_duration_seconds || 0);
+        var typingSpeed   = DashboardMetrics.resolveTypingSpeedDisplay(stats);
+        var units         = {seconds: STRINGS.durationSeconds, minutes: STRINGS.durationMinutes};
         var unusualWords  = stats.unusual_words || [];
         var pastedTexts   = stats.pasted_texts  || [];
         var submText      = stats.submission_text || '';
         var filename      = stats.filename || '';
+        var showReplay    = !!(enableReplay && filename);
 
-        var comparisonText = typingSpeed.statsAvailable
-            ? STRINGS.wpmVsClassAverage
-                .replace('{diff}', typingSpeed.wpmDiffFormatted)
-                .replace('{avg}', typingSpeed.classAvgWpm)
-            : STRINGS.typingSpeedUnavailable;
+        var context = {
+            fullname: panel.dataset.fullname || '',
+            typingspeed: {
+                value: typingSpeed.displayValue,
+                progresspct: typingSpeed.progressPct,
+                comparisonclass: typingSpeed.comparisonClass,
+                comparisontext: typingSpeed.statsAvailable
+                    ? STRINGS.wpmVsClassAverage
+                        .replace('{diff}', typingSpeed.wpmDiffFormatted)
+                        .replace('{avg}', typingSpeed.classAvgWpm)
+                    : STRINGS.typingSpeedUnavailable,
+            },
+            hasunusualwords: unusualWords.length > 0,
+            unusualwords: unusualWords.map(function(word, i) {
+                return {target: 'unusual-' + i, word: word};
+            }),
+            haspastes: pastedTexts.length > 0,
+            pastes: pastedTexts.map(function(text, i) {
+                return {
+                    target: 'pasted-' + i,
+                    number: i + 1,
+                    preview: text.length > 80 ? text.substring(0, 80) + '…' : text,
+                };
+            }),
+            essay: submText ? {
+                html: buildEssayHtml(submText, unusualWords, pastedTexts),
+                wordcount: submText.split(/\s+/).filter(Boolean).length,
+                typingtime: DashboardMetrics.formatDuration(stats.typing_duration_seconds || 0, units),
+                sessiontime: DashboardMetrics.formatDuration(stats.duration_seconds || 0, units),
+            } : null,
+            // Containers must exist in the DOM before Replay is instantiated.
+            replay: showReplay ? {userid: userid} : null,
+        };
 
-        var html = '<div class="authory-student-card">'
-            + '<h2 class="authory-student-name">' + escapeHtml(fullname) + '</h2>'
-            + '</div>';
-
-        // Metrics grid
-        html += '<div class="authory-metrics-grid">';
-
-        // Typing speed
-        html += '<div class="authory-metric-card">'
-            + '<div class="authory-metric-icon">⌨</div>'
-            + '<div class="authory-metric-body">'
-            + '<p class="authory-metric-title">' + escapeHtml(STRINGS.typingSpeed) + '</p>'
-            + '<span class="authory-big-number">' + typingSpeed.displayValue + '</span>'
-            + '<span class="authory-unit">' + escapeHtml(STRINGS.wordsPerMinute) + '</span>'
-            + '<div class="authory-progress-bar">'
-            + '<div class="authory-progress-fill" style="width:' + typingSpeed.progressPct + '%"></div>'
-            + '</div>'
-            + '<p class="authory-comparison ' + typingSpeed.comparisonClass + '">' + escapeHtml(comparisonText) + '</p>'
-            + '</div></div>';
-
-        // Unusual words
-        html += '<div class="authory-metric-card">'
-            + '<div class="authory-metric-icon">&#128269;</div>'
-            + '<div class="authory-metric-body">'
-            + '<p class="authory-metric-title">' + escapeHtml(STRINGS.unusualWords) + '</p>';
-        if (unusualWords.length > 0) {
-            html += '<p class="authory-metric-hint">' + escapeHtml(STRINGS.unusualWordsHint) + '</p>'
-                + '<ul class="authory-word-list">';
-            unusualWords.forEach(function(word, i) {
-                html += '<li class="authory-word-tag" onclick="authoryHighlight(\'unusual-' + i + '\')">'
-                    + escapeHtml(word) + '</li>';
+        return Templates.renderForPromise('tiny_authory_tech/assign_dashboard_student_panel', context)
+            .then(function(result) {
+                panel.dataset.rendered = '1';
+                Templates.replaceNodeContents(panel, result.html, result.js);
+                if (showReplay) {
+                    new Replay('content' + userid, filename, 10, false, 'player_' + userid);
+                }
+                return panel;
             });
-            html += '</ul>';
-        } else {
-            html += '<p class="authory-no-paste">' + escapeHtml(STRINGS.noUnusualWords) + '</p>';
-        }
-        html += '</div></div>';
-
-        // Pasted texts
-        html += '<div class="authory-metric-card">'
-            + '<div class="authory-metric-icon">&#128203;</div>'
-            + '<div class="authory-metric-body">'
-            + '<p class="authory-metric-title">' + escapeHtml(STRINGS.pastedTextDetection) + '</p>';
-        if (pastedTexts.length > 0) {
-            pastedTexts.forEach(function(text, i) {
-                var preview = text.length > 80 ? text.substring(0, 80) + '…' : text;
-                html += '<div class="authory-paste-alert">'
-                    + '<p><strong>' + escapeHtml(STRINGS.paste) + ' ' + (i + 1) + '</strong>'
-                    + ' <a href="javascript:void(0)" class="authory-goto-link"'
-                    + ' onclick="authoryHighlight(\'pasted-' + i + '\')">' + escapeHtml(STRINGS.goToText) + '</a></p>'
-                    + '<p>&ldquo;' + escapeHtml(preview) + '&rdquo;</p>'
-                    + '</div>';
-            });
-        } else {
-            html += '<p class="authory-no-paste">&#10003; ' + escapeHtml(STRINGS.noPasteDetected) + '</p>';
-        }
-        html += '</div></div>';
-
-        html += '</div>'; // end metrics-grid
-
-        // Essay section
-        if (submText) {
-            var wordCount = submText.split(/\s+/).filter(Boolean).length;
-            var essayHtml = buildEssayHtml(submText, unusualWords, pastedTexts);
-
-            html += '<div class="authory-essay-section">'
-                + '<h3 class="authory-essay-title">&#128221; ' + escapeHtml(STRINGS.studentSubmission) + '</h3>'
-                + '<div class="authory-essay-meta">'
-                + '<span><strong>' + escapeHtml(STRINGS.wordCountLabel) + '</strong> ' + wordCount
-                + ' ' + escapeHtml(STRINGS.wordsUnit) + '</span>'
-                + '<span><strong>' + escapeHtml(STRINGS.typingTimeLabel) + '</strong> ' + typingStr + '</span>'
-                + '<span><strong>' + escapeHtml(STRINGS.sessionTimeLabel) + '</strong> ' + sessionStr + '</span>'
-                + '</div>'
-                + '<div class="authory-essay-content">' + essayHtml + '</div>'
-                + '</div>';
-        }
-
-        // Replay section — containers must exist in DOM before Replay is instantiated.
-        if (enableReplay && filename) {
-            html += '<div class="authory-replay-section">'
-                + '<h3 class="authory-replay-title">&#9654; ' + escapeHtml(STRINGS.writingReplay) + '</h3>'
-                + '<div id="player_' + userid + '" class="tiny_authory_tech_replay_control authory-replay-player">'
-                + '</div>'
-                + '<div id="content' + userid + '" class="authory-replay-output"></div>'
-                + '</div>';
-        }
-
-        panel.innerHTML = html;
-
-        if (enableReplay && filename) {
-            new Replay('content' + userid, filename, 10, false, 'player_' + userid);
-        }
     }
 
     /**
@@ -389,9 +322,12 @@ define(
 
         // Step 4b — replace unusual word markers with highlighted spans
         unusualMarkers.forEach(function(um) {
+            var title = STRINGS.unusualWordTitle.replace('{$a}', function() {
+                return um.word;
+            });
             marked = marked.split(um.marker).join(
-                '<span id="' + um.id + '" class="highlight-unusual" title="Unusual word: '
-                + escapeHtml(um.word) + '">' + um.matched + '</span>'
+                '<span id="' + um.id + '" class="highlight-unusual" title="'
+                + escapeHtml(title) + '">' + um.matched + '</span>'
             );
         });
 
@@ -410,6 +346,12 @@ define(
             var urlParams = new URLSearchParams(window.location.search);
             var studentId = urlParams.get('student');
 
+            // Unusual-word tags and "go to text" links in a student's panel.
+            $(document).on('click', '[data-highlight-target]', function(e) {
+                e.preventDefault();
+                highlightElement(this.dataset.highlightTarget);
+            });
+
             // Tab switching with lazy load
             $(document).on('click', '.authory-tab', function() {
                 var tabId = $(this).data('tab');
@@ -427,14 +369,14 @@ define(
                 return;
             }
 
-            var stringsCall = Str.get_strings(STRING_REQUESTS);
+            var stringsCall = loadStrings();
             var calls = Ajax.call([
                 {methodname: 'authory_tech_get_assign_dashboard_students', args: {cmid: cmid}},
                 {methodname: 'authory_tech_get_assign_overview_stats',     args: {cmid: cmid}},
             ]);
 
             $.when(stringsCall, calls[0], calls[1]).done(function(strings, studentsJson, overviewJson) {
-                STRINGS = mapStrings(strings);
+                STRINGS = strings;
 
                 var students = JSON.parse(studentsJson);
                 var overview = JSON.parse(overviewJson);
@@ -482,7 +424,10 @@ define(
                 }
                 var avgTimeEl = document.getElementById('authory-overview-avg-time');
                 if (avgTimeEl) {
-                    avgTimeEl.textContent = DashboardMetrics.formatDuration(overview.class_avg_duration_seconds || 0);
+                    avgTimeEl.textContent = DashboardMetrics.formatDuration(overview.class_avg_duration_seconds || 0, {
+                        seconds: STRINGS.durationSeconds,
+                        minutes: STRINGS.durationMinutes,
+                    });
                 }
 
                 // Charts — resolve names from Moodle students list

@@ -1,0 +1,127 @@
+{{!
+This file is part of Moodle - http://moodle.org/
+
+Moodle is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Moodle is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Moodle. If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+@template tiny_authory_tech/assign_dashboard_student_panel
+
+One student's tab on the assignment writing-analytics dashboard: typing speed, unusual words,
+pasted texts, the annotated submission and the writing replay. Rendered from assign_dashboard.js.
+
+Data attributes required for JS:
+* data-highlight-target: id of the essay span to scroll to and flash when the element is clicked.
+
+Context variables required for this template:
+* fullname - The student's full name.
+* typingspeed - value, progresspct, comparisonclass and comparisontext for the typing speed card.
+* hasunusualwords, unusualwords - Unusual words found in the submission, each with target and word.
+* haspastes, pastes - Pasted texts, each with target, number and preview.
+* essay - Optional. html (the submission, already escaped and annotated), wordcount, typingtime, sessiontime.
+* replay - Optional. userid, used to name the replay player and output containers.
+
+Example context (json):
+{
+    "fullname": "Jane Doe",
+    "typingspeed": {
+        "value": 42,
+        "progresspct": 55,
+        "comparisonclass": "deviation-low",
+        "comparisontext": "+4.4 WPM vs class average (38 WPM)"
+    },
+    "hasunusualwords": true,
+    "unusualwords": [{"target": "unusual-0", "word": "plethora"}],
+    "haspastes": true,
+    "pastes": [{"target": "pasted-0", "number": 1, "preview": "A pasted sentence"}],
+    "essay": {
+        "html": "<p>My essay with a <span id=\"unusual-0\" class=\"highlight-unusual\">plethora</span> of ideas.</p>",
+        "wordcount": 7,
+        "typingtime": "12 min",
+        "sessiontime": "20 min"
+    },
+    "replay": {"userid": 5}
+}
+}}
+<div class="authory-student-card">
+    <h2 class="authory-student-name">{{fullname}}</h2>
+</div>
+<div class="authory-metrics-grid">
+    <div class="authory-metric-card">
+        <div class="authory-metric-icon" aria-hidden="true">&#9000;</div>
+        <div class="authory-metric-body">
+            <p class="authory-metric-title">{{#str}}dashboard_typing_speed, tiny_authory_tech{{/str}}</p>
+            {{#typingspeed}}
+            <span class="authory-big-number">{{value}}</span>
+            <span class="authory-unit">{{#str}}dashboard_words_per_minute, tiny_authory_tech{{/str}}</span>
+            <div class="authory-progress-bar">
+                <div class="authory-progress-fill" style="width: {{progresspct}}%"></div>
+            </div>
+            <p class="authory-comparison {{comparisonclass}}">{{comparisontext}}</p>
+            {{/typingspeed}}
+        </div>
+    </div>
+    <div class="authory-metric-card">
+        <div class="authory-metric-icon" aria-hidden="true">&#128269;</div>
+        <div class="authory-metric-body">
+            <p class="authory-metric-title">{{#str}}dashboard_unusual_words, tiny_authory_tech{{/str}}</p>
+            {{#hasunusualwords}}
+            <p class="authory-metric-hint">{{#str}}dashboard_unusual_words_hint, tiny_authory_tech{{/str}}</p>
+            <ul class="authory-word-list">
+                {{#unusualwords}}
+                <li class="authory-word-tag" data-highlight-target="{{target}}">{{word}}</li>
+                {{/unusualwords}}
+            </ul>
+            {{/hasunusualwords}}
+            {{^hasunusualwords}}
+            <p class="authory-no-paste">{{#str}}dashboard_no_unusual_words, tiny_authory_tech{{/str}}</p>
+            {{/hasunusualwords}}
+        </div>
+    </div>
+    <div class="authory-metric-card">
+        <div class="authory-metric-icon" aria-hidden="true">&#128203;</div>
+        <div class="authory-metric-body">
+            <p class="authory-metric-title">{{#str}}dashboard_pasted_text_detection, tiny_authory_tech{{/str}}</p>
+            {{#pastes}}
+            <div class="authory-paste-alert">
+                <p>
+                    <strong>{{#str}}dashboard_paste, tiny_authory_tech{{/str}} {{number}}</strong>
+                    <a href="#" class="authory-goto-link" data-highlight-target="{{target}}">{{#str}}dashboard_go_to_text, tiny_authory_tech{{/str}}</a>
+                </p>
+                <p>&ldquo;{{preview}}&rdquo;</p>
+            </div>
+            {{/pastes}}
+            {{^haspastes}}
+            <p class="authory-no-paste">&#10003; {{#str}}dashboard_no_paste_detected, tiny_authory_tech{{/str}}</p>
+            {{/haspastes}}
+        </div>
+    </div>
+</div>
+{{#essay}}
+<div class="authory-essay-section">
+    <h3 class="authory-essay-title"><span aria-hidden="true">&#128221;</span> {{#str}}dashboard_student_submission, tiny_authory_tech{{/str}}</h3>
+    <div class="authory-essay-meta">
+        <span><strong>{{#str}}dashboard_word_count_label, tiny_authory_tech{{/str}}</strong> {{wordcount}} {{#str}}dashboard_words_unit, tiny_authory_tech{{/str}}</span>
+        <span><strong>{{#str}}dashboard_typing_time_label, tiny_authory_tech{{/str}}</strong> {{typingtime}}</span>
+        <span><strong>{{#str}}dashboard_session_time_label, tiny_authory_tech{{/str}}</strong> {{sessiontime}}</span>
+    </div>
+    <div class="authory-essay-content">{{{html}}}</div>
+</div>
+{{/essay}}
+{{#replay}}
+<div class="authory-replay-section">
+    <h3 class="authory-replay-title"><span aria-hidden="true">&#9654;</span> {{#str}}dashboard_writing_replay, tiny_authory_tech{{/str}}</h3>
+    <div id="player_{{userid}}" class="tiny_authory_tech_replay_control authory-replay-player"></div>
+    <div id="content{{userid}}" class="authory-replay-output"></div>
+</div>
+{{/replay}}

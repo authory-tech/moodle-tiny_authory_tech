@@ -1,18 +1,33 @@
-const {formatDuration, resolveTypingSpeedDisplay} = require('./dashboard_metrics');
+// dashboard_metrics.js is a plain AMD module (as Moodle's build expects), so give it
+// a minimal define() that hands back its factory's exports.
+let exported;
+global.define = (deps, factory) => {
+    exported = factory();
+};
+require('../../amd/src/dashboard_metrics');
+delete global.define;
+const {formatDuration, resolveTypingSpeedDisplay} = exported;
+
+const UNITS = {seconds: '{$a} sec', minutes: '{$a} min'};
 
 describe('formatDuration', () => {
     test('zero or negative seconds render as an em dash', () => {
-        expect(formatDuration(0)).toBe('—');
-        expect(formatDuration(-5)).toBe('—');
+        expect(formatDuration(0, UNITS)).toBe('—');
+        expect(formatDuration(-5, UNITS)).toBe('—');
     });
 
     test('under a minute renders as whole seconds', () => {
-        expect(formatDuration(45)).toBe('45 sec');
+        expect(formatDuration(45, UNITS)).toBe('45 sec');
+    });
+
+    test('uses the localised unit templates it is given', () => {
+        expect(formatDuration(30, {seconds: '{$a} s', minutes: '{$a} min'})).toBe('30 s');
+        expect(formatDuration(180, {seconds: '{$a} s', minutes: '{$a} minuts'})).toBe('3 minuts');
     });
 
     test('a minute or more renders as whole minutes', () => {
-        expect(formatDuration(60)).toBe('1 min');
-        expect(formatDuration(125)).toBe('2 min');
+        expect(formatDuration(60, UNITS)).toBe('1 min');
+        expect(formatDuration(125, UNITS)).toBe('2 min');
     });
 });
 
