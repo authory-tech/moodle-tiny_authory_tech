@@ -1,0 +1,24 @@
+# Files that stay in the repository but are left out of the release package
+# (zip_plugin.sh builds it with `git archive`, which honours export-ignore).
+
+# Development tooling and CI.
+/.github export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/package.json export-ignore
+/package-lock.json export-ignore
+/tests/js export-ignore
+/phpstan.neon.dist export-ignore
+/phpstan-baseline.neon export-ignore
+/openapi_ml_server.yaml export-ignore
+/openapi_moodle.yaml export-ignore
+/zip_plugin.sh export-ignore
+
+# Design assets not used by the plugin at runtime.
+/logos export-ignore
+/snap.png export-ignore
+
+# Only English ships with the plugin; other languages are contributed through AMOS.
+/lang/ca export-ignore
+/lang/ca_valencia export-ignore
+/lang/es export-ignore

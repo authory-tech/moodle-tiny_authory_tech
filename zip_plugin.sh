@@ -1,50 +1,27 @@
 #!/bin/bash
-# Zips the plugin for Moodle installation.
-# Output: authory_tech_<version>.zip in the parent directory.
-# The zip contains a single top-level folder "authory_tech" as required by Moodle.
+# Builds the release zip for the Moodle plugins directory.
+# Output: authory_tech_<release>.zip in the parent directory, containing a single
+# top-level "authory_tech/" folder as Moodle requires.
+#
+# The zip is made with `git archive`, so it only contains committed files, minus
+# the dev-only paths marked export-ignore in .gitattributes. Uncommitted or
+# untracked local files can never end up in it. Pass a ref to package something
+# other than HEAD, e.g. `./zip_plugin.sh v0.3.0`.
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VERSION=$(grep "plugin->release" "$SCRIPT_DIR/version.php" | sed "s/.*'\(.*\)'.*/\1/")
-OUTPUT="$SCRIPT_DIR/../authory_tech_${VERSION}.zip"
+REF="${1:-HEAD}"
 
-# Files/dirs to exclude from the zip
-EXCLUDES=(
-    ".git"
-    ".github"
-    ".claude"
-    "docker-compose.yml"
-    "openapi_ml_server.yaml"
-    "openapi_moodle.yaml"
-    "run_open_api.sh"
-    "elasticmq.conf"
-    "licenses-init.sql"
-    "purge_cache.sh"
-    "CLAUDE.md"
-    "MARKETPLACE_COMPLIANCE.md"
-    "zip_plugin.sh"
-    "logos"
-    "docs"
-    "snap.png"
-)
+cd "$SCRIPT_DIR"
+if [ "$REF" = "HEAD" ] && [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "Warning: uncommitted changes are NOT included; the zip is built from $REF." >&2
+fi
 
-EXCLUDE_ARGS=()
-for item in "${EXCLUDES[@]}"; do
-    EXCLUDE_ARGS+=("--exclude=authory_tech/${item}" "--exclude=authory_tech/${item}/*")
-done
-
-PARENT="$SCRIPT_DIR/.."
-SYMLINK="$PARENT/authory_tech"
-
-cd "$PARENT"
-
-# Create a temporary symlink so the zip contains "authory_tech/" at the top level
-ln -sfn "$SCRIPT_DIR" "$SYMLINK"
+RELEASE=$(git show "$REF:version.php" | sed -n "s/.*plugin->release *= *'\(.*\)'.*/\1/p")
+OUTPUT="$SCRIPT_DIR/../authory_tech_${RELEASE}.zip"
 
 rm -f "$OUTPUT"
-zip -r "$OUTPUT" authory_tech "${EXCLUDE_ARGS[@]}"
-
-rm -f "$SYMLINK"
+git archive --format=zip --prefix=authory_tech/ -o "$OUTPUT" "$REF"
 
 echo "Created: $OUTPUT"
