@@ -421,7 +421,7 @@ function tiny_authory_tech_test_connection($url) {
     $moodleurl = $CFG->wwwroot;
 
     if (empty($token)) {
-        return json_encode(['status' => false, 'message' => 'No secret key configured.']);
+        return json_encode(['status' => false, 'message' => get_string('test_connection_no_secret', 'tiny_authory_tech')]);
     }
 
     try {

@@ -43,13 +43,11 @@ define(["core/str"], function(Str) {
 
         const icon = document.createElement('img');
         icon.src = M.util.image_url('playicon', 'tiny_authory_tech');
-        icon.alt = 'Replay Icon';
+        icon.alt = '';
         icon.className = 'tiny_authory_tech-replay-bar-icon';
 
         const label = document.createElement('span');
         label.className = 'tiny_authory_tech-replay-label';
-        label.textContent = 'Replay';
-
         Str.get_string("replay", "tiny_authory_tech")
             .then((replayString) => {
                 label.textContent = replayString;

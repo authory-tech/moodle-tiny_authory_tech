@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define([], function() {
+define(['core/str'], function(Str) {
   const analyticButton = (effort, userid, questionid = "", dashboardUrl = "") => { // eslint-disable-line no-unused-vars
     const anchor = document.createElement("a");
     anchor.href = dashboardUrl || "#";
@@ -46,7 +46,7 @@ define([], function() {
     brandLogo.className = 'tiny_authory_tech-brand-logo';
     // eslint-disable-next-line no-undef
     brandLogo.src = M.cfg.wwwroot + '/lib/editor/tiny/plugins/authory_tech/pix/authory_tech_logo.svg';
-    brandLogo.alt = 'Authory';
+    brandLogo.alt = '';
     brandHeader.appendChild(brandLogo);
     card.appendChild(brandHeader);
 
@@ -55,7 +55,7 @@ define([], function() {
 
     // Speed: title + big number + progress bar + comparison
     const title = document.createElement('h3');
-    title.textContent = 'Avg Speed';
+    title.textContent = '';
     content.appendChild(title);
 
     const metricValue = document.createElement('div');
@@ -91,7 +91,7 @@ define([], function() {
 
     // Time on Task section
     const timeTitle = document.createElement('h3');
-    timeTitle.textContent = 'Time on Task';
+    timeTitle.textContent = '';
     content.appendChild(timeTitle);
 
     const timeMetricValue = document.createElement('div');
@@ -149,9 +149,26 @@ define([], function() {
         return item;
     };
 
-    statsRow.appendChild(makeStatItem('Unusual Words', 'authory-unusual-words-' + userid + questionid));
-    statsRow.appendChild(makeStatItem('Pasted Texts', 'authory-pasted-texts-' + userid + questionid));
+    const unusualItem = makeStatItem('', 'authory-unusual-words-' + userid + questionid);
+    const pastedItem = makeStatItem('', 'authory-pasted-texts-' + userid + questionid);
+    statsRow.appendChild(unusualItem);
+    statsRow.appendChild(pastedItem);
     content.appendChild(statsRow);
+
+    Str.get_strings([
+        {key: 'pluginname', component: 'tiny_authory_tech'},
+        {key: 'analytic_button_avg_speed', component: 'tiny_authory_tech'},
+        {key: 'analytic_button_time_on_task', component: 'tiny_authory_tech'},
+        {key: 'dashboard_unusual_words', component: 'tiny_authory_tech'},
+        {key: 'analytic_button_pasted_texts', component: 'tiny_authory_tech'},
+    ]).then(([pluginName, avgSpeed, timeOnTask, unusualWords, pastedTexts]) => {
+        brandLogo.alt = pluginName;
+        title.textContent = avgSpeed;
+        timeTitle.textContent = timeOnTask;
+        unusualItem.querySelector('.tiny_authory_tech-stat-label').textContent = unusualWords;
+        pastedItem.querySelector('.tiny_authory_tech-stat-label').textContent = pastedTexts;
+        return pluginName;
+    }).catch(error => window.console.error('Error loading analytics card strings:', error));
 
     card.appendChild(content);
     anchor.appendChild(card);

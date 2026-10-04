@@ -45,23 +45,45 @@ define(["jquery", "core/ajax", "core/str"], function($, AJAX, str) {
           },
         ]);
         promise1[0].done(function(json) {
-          var data;
-          try {
-            data = JSON.parse(json);
-          } catch (e) {
-            $("#token_message").html("<span class='alert alert-danger' role='alert'>Invalid response from server.</span>");
-            return;
-          }
-          var messageAlert = data.status
-            ? "<span class='alert alert-success' role='alert'>" + (data.message || "Token valid.") + "</span>"
-            : "<span class='alert alert-danger' role='alert'>" + (data.message || "Token rejected.") + "</span>";
-          $("#token_message").html(messageAlert);
+          str.get_strings([
+            {key: "token_approve_invalid_response", component: "tiny_authory_tech"},
+            {key: "token_approve_valid", component: "tiny_authory_tech"},
+            {key: "token_approve_rejected", component: "tiny_authory_tech"},
+          ]).then(function([invalid, valid, rejected]) {
+            var data;
+            try {
+              data = JSON.parse(json);
+            } catch (e) {
+              usersTable.showAlert("#token_message", false, invalid);
+              return false;
+            }
+            usersTable.showAlert("#token_message", data.status, data.message || (data.status ? valid : rejected));
+            return true;
+          }).catch(function(error) { window.console.error(error); });
         });
         promise1[0].fail(function(textStatus) {
-          var msg = (textStatus && textStatus.error) ? textStatus.error : "Network error reaching server.";
-          $("#token_message").html("<span class='alert alert-danger' role='alert'>" + msg + "</span>");
+          str.get_string("token_approve_network_error", "tiny_authory_tech").then(function(networkerror) {
+            var msg = (textStatus && textStatus.error) ? textStatus.error : networkerror;
+            usersTable.showAlert("#token_message", false, msg);
+            return true;
+          }).catch(function(error) { window.console.error(error); });
         });
       });
+    },
+
+    /**
+     * Show a status message as a Bootstrap alert. The message is inserted as text:
+     * it can come from the remote server, so it must not be parsed as HTML.
+     *
+     * @param {string} selector Container to show the alert in.
+     * @param {boolean} success Whether to style it as a success or an error.
+     * @param {string} message The message text.
+     */
+    showAlert: function(selector, success, message) {
+      var alert = $("<span role='alert'></span>")
+        .addClass("alert " + (success ? "alert-success" : "alert-danger"))
+        .text(message);
+      $(selector).empty().append(alert);
     },
 
     testConnection() {
@@ -83,8 +105,7 @@ define(["jquery", "core/ajax", "core/str"], function($, AJAX, str) {
             var label = data.status
               ? (data.message || success)
               : (data.message || fail);
-            var cls = data.status ? 'alert-success' : 'alert-danger';
-            $("#connection_message").html("<span class='alert " + cls + "' role='alert'>" + label + "</span>");
+            usersTable.showAlert("#connection_message", data.status, label);
             return true;
           }).catch(function(error) { window.console.error(error); });
         });

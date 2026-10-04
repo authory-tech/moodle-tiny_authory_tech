@@ -28,6 +28,7 @@ import replayButton from 'tiny_authory_tech/replay_button';
 import AnalyticEvents from 'tiny_authory_tech/analytic_events';
 import templates from 'core/templates';
 import Replay from 'tiny_authory_tech/replay';
+import {getString} from 'core/str';
 export const init = (hasApiKey, userid, enableReplay = true) => {
     const replayInstances = {};
     // eslint-disable-next-line camelcase
@@ -73,7 +74,10 @@ export const init = (hasApiKey, userid, enableReplay = true) => {
 
     if (overviewTable) {
         let newChild = document.createElement('th');
-        newChild.textContent = 'Analytics';
+        getString('analytics', 'tiny_authory_tech').then(str => {
+            newChild.textContent = str;
+            return str;
+        }).catch(error => window.console.error(error));
         let header = overviewTable.querySelector('thead>tr>th:first-child');
         header.insertAdjacentElement('afterend', newChild);
         setReplayButton(overviewTable);

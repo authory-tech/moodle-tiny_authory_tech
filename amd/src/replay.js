@@ -66,6 +66,7 @@ export default class Replay {
         this.aiChars = [];
         this.undoTimestamps = [];
         this.undoChars = [];
+        this.str = {};
 
         const element = document.getElementById(elementId);
         if (!element) {
@@ -96,8 +97,8 @@ export default class Replay {
             }
         }).catch(error => window.console.error('Error fetching replay annotations:', error));
 
-        // Load JSON data and initialize replay
-        this.loadJSON(filePath).then(data => {
+        // Load JSON data and the control labels, then initialize replay
+        Promise.all([this.loadJSON(filePath), this.loadStrings()]).then(([data]) => {
             if (data.status) {
                 this.processData(data);
                 this.totalEvents = this.logData.length;
@@ -125,6 +126,30 @@ export default class Replay {
                 return str;
             }).catch(error => window.console.log(error));
         }
+    }
+
+    /**
+     * Fetch the labels used by the replay controls, timeline and overlays.
+     * Resolves before the controller UI is built, so the UI code can read this.str directly.
+     *
+     * @returns {Promise<Object>} The loaded strings, keyed by string identifier.
+     */
+    loadStrings() {
+        const keys = ['replay_away', 'replay_break', 'replay_from_start', 'replay_legend', 'replay_paste',
+            'replay_paste_at', 'replay_paste_events', 'replay_pause', 'replay_play', 'replay_speed',
+            'replay_student_away', 'replay_timeline', 'replay_typing', 'replay_undo'];
+        return Str.get_strings(keys.map(key => ({key: key, component: 'tiny_authory_tech'}))).then(strings => {
+            keys.forEach((key, i) => {
+                this.str[key] = strings[i];
+            });
+            return this.str;
+        }).catch(error => {
+            window.console.error('Error loading replay strings:', error);
+            keys.forEach(key => {
+                this.str[key] = this.str[key] || '';
+            });
+            return this.str;
+        });
     }
 
     // Process JSON data and normalize timestamps
@@ -191,14 +216,14 @@ export default class Replay {
                 if (natural) {
                     this.playButton.querySelector('.play-icon').innerHTML =
                         '<span style="font-size:18px;line-height:1;">↺</span>';
-                    this.playButton.title = 'Replay from start';
-                    this.playButton.setAttribute('aria-label', 'Replay from start');
+                    this.playButton.title = this.str.replay_from_start;
+                    this.playButton.setAttribute('aria-label', this.str.replay_from_start);
                 } else {
                     const playSvg = document.createElement('img');
                     playSvg.src = M.util.image_url('playicon', 'tiny_authory_tech');
                     this.playButton.querySelector('.play-icon').innerHTML = playSvg.outerHTML;
                     this.playButton.title = '';
-                    this.playButton.setAttribute('aria-label', 'Play');
+                    this.playButton.setAttribute('aria-label', this.str.replay_play);
                 }
             }
         }
@@ -234,15 +259,15 @@ export default class Replay {
 
     createLegend() {
         const legend = document.createElement('div');
-        legend.setAttribute('aria-label', 'Segment legend');
+        legend.setAttribute('aria-label', this.str.replay_legend);
         legend.style.cssText = 'display:flex;gap:10px;align-items:center;flex:1;' +
             'justify-content:center;font-size:11px;color:#666;font-family:"Lexend",sans-serif;';
         const items = [
-            {type: 'dot', color: '#234fc2', label: 'Typing ✍️'},
-            {type: 'dot', color: '#b86e00', label: 'Break ⏳'},
-            {type: 'dot', color: '#8c7a6b', label: 'Away \u{1F4A4}'},
-            {type: 'tick', color: '#e74c3c', emoji: '\u{1F4D1}', label: 'Paste'},
-            {type: 'tick', color: 'rgba(124,92,191,0.65)', emoji: '↩', label: 'Undo'},
+            {type: 'dot', color: '#234fc2', label: this.str.replay_typing + ' ✍️'},
+            {type: 'dot', color: '#b86e00', label: this.str.replay_break + ' ⏳'},
+            {type: 'dot', color: '#8c7a6b', label: this.str.replay_away + ' \u{1F4A4}'},
+            {type: 'tick', color: '#e74c3c', emoji: '\u{1F4D1}', label: this.str.replay_paste},
+            {type: 'tick', color: 'rgba(124,92,191,0.65)', emoji: '↩', label: this.str.replay_undo},
         ];
         for (const item of items) {
             const el = document.createElement('span');
@@ -332,7 +357,7 @@ export default class Replay {
             'flex:1;height:32px;cursor:pointer;';
         scrubberContainer.setAttribute('role', 'slider');
         scrubberContainer.setAttribute('tabindex', '0');
-        scrubberContainer.setAttribute('aria-label', 'Replay timeline');
+        scrubberContainer.setAttribute('aria-label', this.str.replay_timeline);
         scrubberContainer.setAttribute('aria-valuemin', '0');
         scrubberContainer.setAttribute('aria-valuemax', '100');
         scrubberContainer.setAttribute('aria-valuenow', '0');
@@ -415,7 +440,7 @@ export default class Replay {
                 if (Math.abs(cursorX - pasteX) <= 10) {
                     const raw = paste.pastedText || '';
                     const preview = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
-                    const pasteLabel = '\u{1F4D1} Paste at ' + paste.formattedTime;
+                    const pasteLabel = '\u{1F4D1} ' + this.str.replay_paste_at.replace('{$a}', paste.formattedTime);
                     tip.textContent = preview ? pasteLabel + ' — "' + preview + '"' : pasteLabel;
                     tip.style.left = (paste.normalizedTime / this.totalDuration * 100) + '%';
                     tip.style.display = 'block';
@@ -441,7 +466,7 @@ export default class Replay {
             for (const bp of this.breakPositions) {
                 const slotL = this.normTimeToBarPct(bp.at);
                 if (pct * 100 >= slotL && pct * 100 <= slotL + tipSlot) {
-                    label = 'Away';
+                    label = this.str.replay_away;
                     durMs = bp.duration;
                     break;
                 }
@@ -454,7 +479,7 @@ export default class Replay {
                     const gap = ev.t - prev.t;
                     if (gap >= this.windowClosedMs) {
                         if (bState !== null && hovered >= bandStart && hovered < prev.normalizedTime) {
-                            label = bState === 'writing' ? 'Typing' : 'Break';
+                            label = bState === 'writing' ? this.str.replay_typing : this.str.replay_break;
                             durMs = prev.normalizedTime - bandStart;
                         }
                         bState = null;
@@ -468,7 +493,7 @@ export default class Replay {
                         bandStart = prev.normalizedTime;
                     } else if (st !== bState) {
                         if (hovered >= bandStart && hovered < prev.normalizedTime) {
-                            label = bState === 'writing' ? 'Typing' : 'Break';
+                            label = bState === 'writing' ? this.str.replay_typing : this.str.replay_break;
                             durMs = prev.normalizedTime - bandStart;
                             break;
                         }
@@ -478,7 +503,7 @@ export default class Replay {
                     if (i === this.logData.length - 1 && !label) {
                         const end = ev.normalizedTime;
                         if (hovered >= bandStart && hovered <= end) {
-                            label = bState === 'writing' ? 'Typing' : 'Break';
+                            label = bState === 'writing' ? this.str.replay_typing : this.str.replay_break;
                             durMs = end - bandStart;
                         }
                     }
@@ -631,7 +656,7 @@ export default class Replay {
             bandStartPct = null;
             const width = this.normTimeToBarPct(endNorm) - left;
             if (width <= 0) { return; }
-            const label = bandState === 'writing' ? 'Typing' : 'Break';
+            const label = bandState === 'writing' ? this.str.replay_typing : this.str.replay_break;
             const span = document.createElement('div');
             span.style.cssText = `position:absolute;top:0;height:100%;left:${left.toFixed(2)}%;` +
                 `width:${width.toFixed(2)}%;background:${stateColors[bandState]};`;
@@ -651,7 +676,7 @@ export default class Replay {
                 const brkLeft = this.normTimeToBarPct(prev.normalizedTime);
                 const brkDiv = document.createElement('div');
                 brkDiv.setAttribute('role', 'img');
-                brkDiv.setAttribute('aria-label', `Away — ${fmtDur(gap)}`);
+                brkDiv.setAttribute('aria-label', `${this.str.replay_away} — ${fmtDur(gap)}`);
                 brkDiv.style.cssText = `position:absolute;top:0;height:100%;left:${brkLeft.toFixed(2)}%;` +
                     `width:${slotPct.toFixed(2)}%;background:${stateColors.away};`;
                 track.appendChild(brkDiv);
@@ -690,7 +715,7 @@ export default class Replay {
             const midPct = this.normTimeToBarPct(bp.at) + slotPct / 2;
             const brk = document.createElement('div');
             brk.setAttribute('aria-hidden', 'true');
-            brk.title = `Away — ${fmtDur(bp.duration)}`;
+            brk.title = `${this.str.replay_away} — ${fmtDur(bp.duration)}`;
             brk.style.cssText = `position:absolute;bottom:calc(50% + 6px);left:${midPct.toFixed(2)}%;` +
                 'transform:translateX(-50%);font-size:10px;line-height:1;' +
                 'pointer-events:none;z-index:4;';
@@ -701,7 +726,7 @@ export default class Replay {
         for (const paste of this.pasteTimestamps) {
             const left = this.normTimeToBarPct(paste.normalizedTime);
             const wrap = document.createElement('div');
-            wrap.title = `Paste — ${paste.formattedTime}`;
+            wrap.title = `${this.str.replay_paste} — ${paste.formattedTime}`;
             wrap.style.cssText = `position:absolute;top:50%;left:${left.toFixed(2)}%;` +
                 'transform:translate(-50%,-50%);width:12px;pointer-events:none;';
 
@@ -728,7 +753,7 @@ export default class Replay {
             if (left - lastUndoLeft < 1) { continue; }
             lastUndoLeft = left;
             const wrap = document.createElement('div');
-            wrap.title = `Undo — ${undo.formattedTime}`;
+            wrap.title = `${this.str.replay_undo} — ${undo.formattedTime}`;
             wrap.style.cssText = `position:absolute;top:50%;left:${left.toFixed(2)}%;` +
                 'transform:translate(-50%,-50%);width:8px;pointer-events:none;';
             const line = document.createElement('div');
@@ -783,7 +808,7 @@ export default class Replay {
         speedContainer.classList.add('tiny_authory_tech_speed_controls', 'speed-controls');
         const speedLabel = document.createElement('span');
         speedLabel.classList.add('tiny_authory_tech_speed_label');
-        speedLabel.textContent = 'Speed: ';
+        speedLabel.textContent = this.str.replay_speed + ' ';
         speedContainer.appendChild(speedLabel);
 
         const speedGroup = document.createElement('div');
@@ -927,7 +952,7 @@ export default class Replay {
 
         const counterDisplay = document.createElement('div');
         counterDisplay.classList.add('paste-events-counter', 'tiny_authory_tech_counter_display');
-        counterDisplay.textContent = 'Paste Events';
+        counterDisplay.textContent = this.str.replay_paste_events;
 
         const navButtons = document.createElement('div');
         navButtons.classList.add('tiny_authory_tech_nav_buttons');
@@ -957,7 +982,7 @@ export default class Replay {
         const updateDisplay = () => {
             contentContainer.innerHTML = '';
             contentContainer.appendChild(this.createPasteEventDisplay(this.pasteTimestamps[currentIndex]));
-            counterDisplay.textContent = 'Paste Events';
+            counterDisplay.textContent = this.str.replay_paste_events;
             prevButton.disabled = currentIndex === 0;
             prevButton.style.opacity = currentIndex === 0 ? '0.5' : '1';
             nextButton.disabled = currentIndex === this.pasteTimestamps.length - 1;
@@ -1083,7 +1108,7 @@ export default class Replay {
         this.replayInProgress = true;
         if (this.playButton) {
             this.playButton.title = '';
-            this.playButton.setAttribute('aria-label', 'Pause');
+            this.playButton.setAttribute('aria-label', this.str.replay_pause);
         }
         if (reset) {
             this.outputElement.innerHTML = '';
@@ -1346,7 +1371,7 @@ export default class Replay {
         const mins = Math.round((durationMs % 3600000) / 60000);
         const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
         const msgEl = overlay.querySelector('.tiny_authory_tech_away_msg');
-        msgEl.innerHTML = '\u{1F4A4}&nbsp; Student away for <strong>' + timeStr + '</strong>';
+        msgEl.innerHTML = '\u{1F4A4}&nbsp; ' + this.str.replay_student_away.replace('{$a}', '<strong>' + timeStr + '</strong>');
         overlay.style.display = 'flex';
     }
 

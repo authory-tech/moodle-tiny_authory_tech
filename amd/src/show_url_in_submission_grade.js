@@ -34,6 +34,21 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", "./anal
     replayButton,
 ) {
     const replayInstances = {};
+
+    /**
+     * Set a property of an element to a localised string once it has loaded.
+     *
+     * @param {HTMLElement} el The element to update.
+     * @param {string} prop The property to set, e.g. 'title' or 'textContent'.
+     * @param {string} key The string identifier in tiny_authory_tech.
+     * @param {string|number} a The value for the string's {$a} placeholder.
+     */
+    const setString = (el, prop, key, a) => {
+        str.get_string(key, 'tiny_authory_tech', a).then(text => {
+            el[prop] = text;
+            return text;
+        }).catch(error => window.console.error(error));
+    };
     // eslint-disable-next-line
     window.video_playback = function (mid, filepath) {
         if (filepath !== '') {
@@ -151,7 +166,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", "./anal
                                 let markEl = document.getElementById('authory-speed-mark-' + userid);
                                 if (markEl && stats.class_avg_wpm) {
                                     markEl.style.left = Math.min(100, Math.round(stats.class_avg_wpm)) + '%';
-                                    markEl.title = 'Class avg: ' + Math.round(stats.class_avg_wpm) + ' WPM';
+                                    setString(markEl, 'title', 'class_avg_wpm', Math.round(stats.class_avg_wpm));
                                     markEl.style.display = '';
                                 }
                                 let diffEl = document.getElementById('authory-speed-diff-' + userid);
@@ -159,7 +174,8 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", "./anal
                                     let diffVal = parseFloat(stats.wpm_diff);
                                     let absDiff = Math.abs(diffVal);
                                     let sign = diffVal >= 0 ? '+' : '';
-                                    diffEl.textContent = sign + diffVal.toFixed(1) + ' WPM compared to class average';
+                                    setString(diffEl, 'textContent', 'wpm_compared_to_class_average',
+                                        sign + diffVal.toFixed(1));
                                     let devClass = absDiff < 5 ? 'deviation-low'
                                         : absDiff < 15 ? 'deviation-medium'
                                         : 'deviation-high';
@@ -186,7 +202,8 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", "./anal
                                     let avgSecs = Math.round(stats.class_avg_duration_seconds);
                                     let am = Math.floor(avgSecs / 60);
                                     let as_ = avgSecs % 60;
-                                    timeMarkEl.title = 'Class avg: ' + am + 'm ' + (as_ < 10 ? '0' : '') + as_ + 's';
+                                    setString(timeMarkEl, 'title', 'class_avg_value',
+                                        am + 'm ' + (as_ < 10 ? '0' : '') + as_ + 's');
                                     timeMarkEl.style.display = '';
                                 }
                                 let timeDiffEl = document.getElementById('authory-time-diff-' + userid);
@@ -197,7 +214,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", "./anal
                                     let dm = Math.floor(absDiff / 60);
                                     let ds = absDiff % 60;
                                     let diffLabel = (diffSecs < 0 ? '-' : '+') + dm + 'm ' + (ds < 10 ? '0' : '') + ds + 's';
-                                    timeDiffEl.textContent = diffLabel + ' compared to class average';
+                                    setString(timeDiffEl, 'textContent', 'compared_to_class_average', diffLabel);
                                     let devClass = absDiff < 60 ? 'deviation-low'
                                         : absDiff < 300 ? 'deviation-medium'
                                         : 'deviation-high';

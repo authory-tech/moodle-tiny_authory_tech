@@ -23,6 +23,7 @@
  */
 
 import Icons from 'tiny_authory_tech/svg_repo';
+import {getString} from 'core/str';
 export default class DocumentView {
 
     constructor(User, Rubrics, submission, modulename, editor, quizInfo) {
@@ -565,7 +566,10 @@ export default class DocumentView {
         dueValue.className = 'text-danger';
 
         remainingLabel.textContent = `${this.remaining}: `;
-        remainingValue.textContent = this.calculateDate(dueDate);
+        this.calculateDate(dueDate).then(text => {
+            remainingValue.textContent = text;
+            return text;
+        }).catch(error => window.console.error(error));
         remainingValue.className = 'text-danger';
 
         openedWrapper.className = 'd-flex justify-content-between';
@@ -604,9 +608,15 @@ export default class DocumentView {
     }
 
 
+    /**
+     * Describe the time left until a due date, e.g. "3 days, 4 hours" or "Overdue".
+     *
+     * @param {string|number|null} date The due date.
+     * @returns {Promise<string>} The localised description.
+     */
     calculateDate(date) {
         if (!date) {
-            return '-';
+            return Promise.resolve('-');
         }
         const date1 = new Date(date); // Due date (local time)
         const now = new Date(); // Current date/time
@@ -614,16 +624,12 @@ export default class DocumentView {
         // Calculate the difference in milliseconds
         const diffMs = date1 - now;
 
-        // Convert to days, hours, minutes
         if (diffMs <= 0) {
-            return "Overdue";
-        } else {
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
-
-            return `${diffDays} days, ${diffHours} hours`;
+            return Promise.resolve(this.overdue);
         }
-
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+        return getString('time_remaining_days_hours', 'tiny_authory_tech', {days: diffDays, hours: diffHours});
     }
 
     fullPageModule(module) {

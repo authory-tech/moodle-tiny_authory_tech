@@ -111,7 +111,7 @@ Example context (json):
 
             <div class="tiny_authory_tech-stats-card">
                 <p class="title">{{#str}}words_per_minute, tiny_authory_tech {{/str}}</p>
-                <h2>{{analytics.words_per_minute}} WPM</h2>
+                <h2>{{analytics.words_per_minute}} {{#str}}wpm, tiny_authory_tech{{/str}}</h2>
                 <p class="desc">{{#str}}words_per_minute_desc, tiny_authory_tech {{/str}}</p>
             </div>
 
@@ -143,7 +143,7 @@ Example context (json):
             <h4>{{#str}}paste_analysis, tiny_authory_tech {{/str}}</h4>
             <p><strong>{{#str}}pastecount, tiny_authory_tech {{/str}}:</strong> {{pastecount}}</p>
             <div>
-                <strong>{{#str}}comments, tiny_authory_tech {{/str}}:</strong> {{^comments}}None{{/comments}}
+                <strong>{{#str}}comments, tiny_authory_tech {{/str}}:</strong> {{^comments}}{{#str}}none{{/str}}{{/comments}}
                 {{#comments}}
                     <p class="tiny_authory_tech-comments">{{usercomment}}</p>
                 {{/comments}}
