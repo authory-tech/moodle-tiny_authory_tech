@@ -85,7 +85,7 @@ jobs:
           "
 
   # -----------------------------------------------------------------------
-  # JS unit tests for the pure logic in amd/src (Jest). Independent of the
+  # JS unit tests (tests/js) for the pure logic in amd/src (Jest). Independent of the
   # Moodle install matrix below — no Moodle instance needed for these.
   # -----------------------------------------------------------------------
   js-test:
@@ -117,9 +117,7 @@ jobs:
     name: Test (PHP ${{ matrix.php }}, ${{ matrix.database }}, ${{ matrix.moodle-branch }})
     runs-on: ubuntu-22.04
     needs: lint
-    # Moodle 5.x support is still being verified — don't let a known 5.x-only
-    # gap block merges while 4.5 (the officially supported branch) stays a hard gate.
-    continue-on-error: ${{ matrix.moodle-branch != 'MOODLE_405_STABLE' }}
+    # Every branch in version.php's $plugin->supported range (4.5–5.2) is a hard gate.
 
     services:
       # Postgres 16 is Moodle 5.2's minimum (per moodle-plugin-ci's changelog); newer-than-minimum
@@ -157,6 +155,21 @@ jobs:
             moodle-branch: "MOODLE_502_STABLE"
           - php: "8.2"
             moodle-branch: "MOODLE_502_STABLE"
+        # 5.0 and 5.1 sit inside the supported range too; one PHP version each keeps
+        # the matrix small while still covering both databases.
+        include:
+          - php: "8.3"
+            moodle-branch: "MOODLE_500_STABLE"
+            database: mariadb
+          - php: "8.3"
+            moodle-branch: "MOODLE_500_STABLE"
+            database: pgsql
+          - php: "8.3"
+            moodle-branch: "MOODLE_501_STABLE"
+            database: mariadb
+          - php: "8.3"
+            moodle-branch: "MOODLE_501_STABLE"
+            database: pgsql
 
     steps:
       - name: Check out repository code
@@ -257,8 +270,9 @@ jobs:
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci mustache
 
+      # Blocking: the plugins directory runs the same check on every uploaded version,
+      # so stale or hand-edited amd/build files must fail here first.
       - name: Grunt
-        continue-on-error: true
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci grunt --max-lint-warnings 0
 
