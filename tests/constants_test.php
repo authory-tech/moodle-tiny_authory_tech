@@ -166,4 +166,42 @@ final class constants_test extends \advanced_testcase {
         set_config('enable_replay', 0, 'tiny_authory_tech');
         $this->assertFalse(\tiny_authory_tech\constants::enable_replay());
     }
+
+    // Tests for the trial window (is_trial_expired / get_trial_days_remaining).
+
+    /**
+     * A trial that started an hour ago is not expired and has 59 whole days left.
+     */
+    public function test_trial_just_started_is_not_expired(): void {
+        $this->resetAfterTest();
+        set_config('plan', 'trial', 'tiny_authory_tech');
+        set_config('trial_start', time() - HOURSECS, 'tiny_authory_tech');
+
+        $this->assertFalse(\tiny_authory_tech\constants::is_trial_expired());
+        $this->assertSame(59, \tiny_authory_tech\constants::get_trial_days_remaining());
+    }
+
+    /**
+     * A trial that started more than 60 days ago is expired with no days left.
+     */
+    public function test_trial_older_than_sixty_days_is_expired(): void {
+        $this->resetAfterTest();
+        set_config('plan', 'trial', 'tiny_authory_tech');
+        set_config('trial_start', time() - 61 * DAYSECS, 'tiny_authory_tech');
+
+        $this->assertTrue(\tiny_authory_tech\constants::is_trial_expired());
+        $this->assertSame(0, \tiny_authory_tech\constants::get_trial_days_remaining());
+    }
+
+    /**
+     * Non-trial plans never expire, whatever trial_start says.
+     */
+    public function test_non_trial_plan_never_expires(): void {
+        $this->resetAfterTest();
+        set_config('plan', 'institution', 'tiny_authory_tech');
+        set_config('trial_start', time() - 365 * DAYSECS, 'tiny_authory_tech');
+
+        $this->assertFalse(\tiny_authory_tech\constants::is_trial_expired());
+        $this->assertSame(0, \tiny_authory_tech\constants::get_trial_days_remaining());
+    }
 }

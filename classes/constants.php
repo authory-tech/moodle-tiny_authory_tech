@@ -80,7 +80,7 @@ class constants {
         if (!$trialstart) {
             return false;
         }
-        return time() > $trialstart + 60 * DAY_SECS;
+        return time() > $trialstart + 60 * DAYSECS;
     }
 
     /**
@@ -94,7 +94,7 @@ class constants {
         if (!$trialstart) {
             return 60;
         }
-        $remaining = ($trialstart + 60 * DAY_SECS - time()) / DAY_SECS;
+        $remaining = ($trialstart + 60 * DAYSECS - time()) / DAYSECS;
         return max(0, (int) $remaining);
     }
 
@@ -322,7 +322,7 @@ class constants {
         $nextsync     = strtotime('+5 minutes');
 
         if (empty($secret)) {
-            if ($apikey !== false || $apikey !== "0") {
+            if ($apikey !== false && $apikey !== "0") {
                 set_config('apiKey', false, 'tiny_authory_tech');
             }
             if ($syncinterval < $now) {
