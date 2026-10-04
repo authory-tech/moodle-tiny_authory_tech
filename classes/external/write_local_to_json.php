@@ -67,7 +67,7 @@ class write_local_to_json extends external_api {
         $cmid = 0,
         $modulename = 'quiz',
         $editorid = null,
-        $jsondata = [],
+        $jsondata = '',
         $originaltext = ""
     ) {
         global $USER, $DB, $CFG;

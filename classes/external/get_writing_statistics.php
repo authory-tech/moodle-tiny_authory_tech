@@ -122,7 +122,7 @@ class get_writing_statistics extends external_api {
     /**
      * Returns parameters for authory_tech_get_analytics method
      *
-     * @return external_function_parameters Parameters definition for storing quality metrics data
+     * @return external_single_structure Description of the writing statistics result
      */
     public static function execute_returns() {
         return new external_single_structure([

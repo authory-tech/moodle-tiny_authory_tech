@@ -7,12 +7,6 @@ parameters:
 			path: assign_dashboard.php
 
 		-
-			message: '#^Constant DAY_SECS not found\.$#'
-			identifier: constant.notFound
-			count: 3
-			path: classes/constants.php
-
-		-
 			message: '#^Parameter \#1 \$qubaid of static method question_engine\:\:load_questions_usage_by_activity\(\) expects int, string given\.$#'
 			identifier: argument.type
 			count: 1
@@ -25,22 +19,52 @@ parameters:
 			path: classes/constants.php
 
 		-
-			message: '#^Result of \|\| is always true\.$#'
-			identifier: booleanOr.alwaysTrue
-			count: 1
-			path: classes/constants.php
-
-		-
 			message: '#^Right side of && is always true\.$#'
 			identifier: booleanAnd.rightAlwaysTrue
 			count: 1
 			path: classes/constants.php
 
 		-
-			message: '#^Strict comparison using \!\=\= between false and ''0'' will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
+			message: '#^Variable \$filename might not be defined\.$#'
+			identifier: variable.undefined
 			count: 1
-			path: classes/constants.php
+			path: classes/external/get_comment_link.php
+
+		-
+			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/external/get_replay_annotations.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: classes/external/get_reply_json.php
+
+		-
+			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/external/get_reply_json.php
+
+		-
+			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/external/get_writing_differences.php
+
+		-
+			message: '#^Parameter \#1 \$qubaid of static method question_engine\:\:load_questions_usage_by_activity\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/external/user_comments.php
+
+		-
+			message: '#^Parameter \#1 \$slot of method question_usage_by_activity\:\:get_question\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/external/user_comments.php
 
 		-
 			message: '#^Method tiny_authory_tech\\local\\page\\visualization\:\:prepare_data\(\) is unused\.$#'
@@ -65,54 +89,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: db/upgrade.php
-
-		-
-			message: '#^Default value of the parameter \#5 \$jsondata \(array\) of method authory_tech_json_func_data\:\:write_local_to_json\(\) is incompatible with type string\.$#'
-			identifier: parameter.defaultValue
-			count: 1
-			path: externallib.php
-
-		-
-			message: '#^Method authory_tech_json_func_data\:\:authory_tech_get_analytics_returns\(\) should return core_external\\external_function_parameters but returns core_external\\external_single_structure\.$#'
-			identifier: return.type
-			count: 1
-			path: externallib.php
-
-		-
-			message: '#^Method authory_tech_json_func_data\:\:authory_tech_store_writing_differencs_returns\(\) should return core_external\\external_function_parameters but returns core_external\\external_single_structure\.$#'
-			identifier: return.type
-			count: 1
-			path: externallib.php
-
-		-
-			message: '#^Parameter \#1 \$array \(list\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: externallib.php
-
-		-
-			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 3
-			path: externallib.php
-
-		-
-			message: '#^Parameter \#1 \$qubaid of static method question_engine\:\:load_questions_usage_by_activity\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: externallib.php
-
-		-
-			message: '#^Parameter \#1 \$slot of method question_usage_by_activity\:\:get_question\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: externallib.php
-
-		-
-			message: '#^Variable \$filename might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: externallib.php
 
 		-
 			message: '#^Call to an undefined method moodleform\:\:get_current\(\)\.$#'
@@ -145,18 +121,6 @@ parameters:
 			path: locallib.php
 
 		-
-			message: '#^Default value of the parameter \#6 \$perpage \(string\) of function tiny_authory_tech_get_user_writing_data\(\) is incompatible with type int\.$#'
-			identifier: parameter.defaultValue
-			count: 1
-			path: locallib.php
-
-		-
-			message: '#^Default value of the parameter \#7 \$limit \(string\) of function tiny_authory_tech_get_user_writing_data\(\) is incompatible with type int\.$#'
-			identifier: parameter.defaultValue
-			count: 1
-			path: locallib.php
-
-		-
 			message: '#^Call to an undefined method core\\output\\renderer_base\:\:paging_bar\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -172,12 +136,6 @@ parameters:
 			message: '#^Result of \|\| is always true\.$#'
 			identifier: booleanOr.alwaysTrue
 			count: 2
-			path: renderer.php
-
-		-
-			message: '#^Ternary operator condition is always true\.$#'
-			identifier: ternary.alwaysTrue
-			count: 1
 			path: renderer.php
 
 		-
@@ -201,7 +159,7 @@ parameters:
 		-
 			message: '#^Parameter \#4 \$defaultsetting of class admin_setting_configcheckbox constructor expects string, int given\.$#'
 			identifier: argument.type
-			count: 1
+			count: 2
 			path: settings.php
 
 		-

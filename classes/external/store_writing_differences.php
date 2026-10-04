@@ -36,7 +36,7 @@ class store_writing_differences extends external_api {
     /**
      * Returns parameters for store_user_writing method
      *
-     * @return external_function_parameters Parameters definition for storing user writing data
+     * @return external_single_structure Description of the store result
      */
     public static function execute_parameters() {
         return new external_function_parameters([
@@ -104,7 +104,7 @@ class store_writing_differences extends external_api {
     /**
      * Returns parameters for store_user_writing method
      *
-     * @return external_function_parameters Parameters definition for storing user writing data
+     * @return external_single_structure Description of the store result
      */
     public static function execute_returns() {
         return new external_single_structure([

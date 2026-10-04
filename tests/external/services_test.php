@@ -35,8 +35,8 @@ final class services_test extends \advanced_testcase {
     public function test_every_registered_function_resolves(): void {
         global $CFG, $DB;
 
-        $functions = [];
         require($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/db/services.php');
+        /** @var array<string, array<string, mixed>> $functions Defined by db/services.php. */
         $this->assertNotEmpty($functions);
 
         $installed = $DB->count_records('external_functions', ['component' => 'tiny_authory_tech']);
