@@ -169,13 +169,14 @@ class constants {
      * @return string The paste setting value - either 'allow' or the configured setting
      */
     public static function get_paste_setting($courseid = null, $cmid = null) {
-        global $COURSE;
+        global $CFG, $COURSE;
 
         if ($courseid === null) {
             $courseid = $COURSE->id;
         }
 
         if ($cmid === null) {
+            require_once($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/locallib.php');
             $cmid = tiny_authory_tech_get_cmid($courseid) ?? 0;
         }
 
@@ -517,8 +518,11 @@ class constants {
      * @return int|null The question ID if found, null otherwise
      */
     public static function get_question_id($editorid) {
+        global $CFG;
+
         $editoridarr = explode(':', $editorid);
         if (count($editoridarr) > 1) {
+            require_once($CFG->dirroot . '/question/engine/lib.php');
             $uniqueid = substr($editoridarr[0] . "\n", 1);
             $slot = substr($editoridarr[1] . "\n", 0, -11);
             $quba = question_engine::load_questions_usage_by_activity($uniqueid);

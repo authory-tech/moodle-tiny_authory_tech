@@ -126,4 +126,30 @@ class helper {
             $DB->update_record($table, $rec, true);
         }
     }
+
+    /**
+     * Return the ID of the oldest file record for a user, with in-request caching.
+     *
+     * Avoids repeated identical queries across functions that all need to know
+     * whether the current file is the user's first submission.
+     *
+     * @param int $userid
+     * @return int|null File ID, or null if the user has no files.
+     */
+    public static function get_user_first_file_id(int $userid): ?int {
+        global $DB;
+        static $cache = [];
+
+        if ($userid <= 0) {
+            return null;
+        }
+        if (!array_key_exists($userid, $cache)) {
+            $id = $DB->get_field_sql(
+                'SELECT MIN(id) FROM {tiny_authory_tech_files} WHERE userid = :userid',
+                ['userid' => $userid]
+            );
+            $cache[$userid] = $id ? (int) $id : null;
+        }
+        return $cache[$userid];
+    }
 }

@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace tiny_authory_tech\tests; // phpcs:ignore moodle.PHPUnit.TestCaseNames.UnexpectedLevel2NS
+namespace tiny_authory_tech\local;
 
 /**
- * Unit tests for authory_tech_json_func_data's writing-analytics helpers.
+ * Unit tests for the writing-analytics helpers in writing_stats.
  *
  * Covers two regressions that shipped to production with zero test coverage:
  *  - "Bug 2": get_student_stats() silently forwarded type-server's error
@@ -30,28 +30,9 @@ namespace tiny_authory_tech\tests; // phpcs:ignore moodle.PHPUnit.TestCaseNames.
  * @package    tiny_authory_tech
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers \authory_tech_json_func_data
+ * @covers \tiny_authory_tech\local\writing_stats
  */
-final class externallib_test extends \advanced_testcase {
-
-    protected function setUp(): void {
-        parent::setUp();
-        global $CFG;
-        require_once($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/externallib.php');
-    }
-
-    /**
-     * Invokes a private/protected static method via reflection.
-     *
-     * @param string $method Method name on authory_tech_json_func_data
-     * @param array $args Positional arguments
-     * @return mixed
-     */
-    private function call_private_static(string $method, array $args) {
-        $ref = new \ReflectionMethod(\authory_tech_json_func_data::class, $method);
-        $ref->setAccessible(true);
-        return $ref->invokeArgs(null, $args);
-    }
+final class writing_stats_test extends \advanced_testcase {
 
     /**
      * Inserts a tiny_authory_tech_files row with the given delta-event timestamps
@@ -86,7 +67,7 @@ final class externallib_test extends \advanced_testcase {
 
     public function test_payload_marks_stats_available_when_typeserver_succeeds(): void {
         $typeserver = json_encode(['avg_wpm' => 42.5, 'class_avg_wpm' => 38.0, 'wpm_diff' => '+4.50']);
-        $merged = \authory_tech_json_func_data::build_student_stats_payload(200, $typeserver, [
+        $merged = writing_stats::build_student_stats_payload(200, $typeserver, [
             'submission_text'         => 'hello',
             'filename'                => 'f.json',
             'duration_seconds'        => 100,
@@ -109,7 +90,7 @@ final class externallib_test extends \advanced_testcase {
         // {"error": "database error"} with HTTP 500 — it must not be treated as
         // valid stats just because the body decodes to an array.
         $typeserver = json_encode(['error' => 'database error']);
-        $merged = \authory_tech_json_func_data::build_student_stats_payload(500, $typeserver, [
+        $merged = writing_stats::build_student_stats_payload(500, $typeserver, [
             'submission_text'         => 'hello',
             'filename'                => 'f.json',
             'duration_seconds'        => 92,
@@ -131,7 +112,7 @@ final class externallib_test extends \advanced_testcase {
         // Belt-and-suspenders: even a 200-shaped body arriving with a non-200
         // status must not be trusted.
         $typeserver = json_encode(['avg_wpm' => 99]);
-        $merged = \authory_tech_json_func_data::build_student_stats_payload(503, $typeserver, [
+        $merged = writing_stats::build_student_stats_payload(503, $typeserver, [
             'submission_text' => '', 'filename' => '', 'duration_seconds' => 0,
             'typing_duration_seconds' => 0, 'pasted_texts' => [],
         ]);
@@ -142,7 +123,7 @@ final class externallib_test extends \advanced_testcase {
         // empty(0) is true in PHP — a type-server response with duration_seconds
         // explicitly 0 must still fall back to the local value, not keep the 0.
         $typeserver = json_encode(['avg_wpm' => 10, 'duration_seconds' => 0]);
-        $merged = \authory_tech_json_func_data::build_student_stats_payload(200, $typeserver, [
+        $merged = writing_stats::build_student_stats_payload(200, $typeserver, [
             'submission_text' => '', 'filename' => '', 'duration_seconds' => 77,
             'typing_duration_seconds' => 0, 'pasted_texts' => [],
         ]);
@@ -153,7 +134,7 @@ final class externallib_test extends \advanced_testcase {
         // "Always use local content as source of truth for paste texts" —
         // type-server's own value, if any, must never win.
         $typeserver = json_encode(['avg_wpm' => 10, 'pasted_texts' => ['from type-server']]);
-        $merged = \authory_tech_json_func_data::build_student_stats_payload(200, $typeserver, [
+        $merged = writing_stats::build_student_stats_payload(200, $typeserver, [
             'submission_text' => '', 'filename' => '', 'duration_seconds' => 0,
             'typing_duration_seconds' => 0, 'pasted_texts' => ['local paste'],
         ]);
@@ -171,7 +152,7 @@ final class externallib_test extends \advanced_testcase {
         // 3 gaps of 2s each — well under both the 5s typing cap and 300s session cap.
         $id = $this->insert_file_with_events(2, 1, [$base, $base + 2000, $base + 4000, $base + 6000]);
 
-        $result = $this->call_private_static('compute_duration_from_content', [$id, $DB]);
+        $result = writing_stats::compute_duration_from_content($id, $DB);
         $this->assertEquals(6, $result['session']);
         $this->assertEquals(6, $result['typing']);
     }
@@ -183,7 +164,7 @@ final class externallib_test extends \advanced_testcase {
         // A single 90s pause: over the 5s typing cap, under the 300s session cap.
         $id = $this->insert_file_with_events(2, 1, [$base, $base + 90_000]);
 
-        $result = $this->call_private_static('compute_duration_from_content', [$id, $DB]);
+        $result = writing_stats::compute_duration_from_content($id, $DB);
         $this->assertEquals(90, $result['session']);
         $this->assertEquals(0, $result['typing']);
     }
@@ -203,7 +184,7 @@ final class externallib_test extends \advanced_testcase {
             $base + 3000 + $twodaysms + 3000,
         ]);
 
-        $result = $this->call_private_static('compute_duration_from_content', [$id, $DB]);
+        $result = writing_stats::compute_duration_from_content($id, $DB);
         $this->assertEquals(6, $result['session'], 'only the two 3s gaps should count; the 2-day gap must be excluded');
         $this->assertLessThan(300, $result['session']);
     }
@@ -216,7 +197,7 @@ final class externallib_test extends \advanced_testcase {
             'filename' => 'f.json', 'content' => null,
             'timemodified' => time(), 'uploaded' => 0,
         ]);
-        $result = $this->call_private_static('compute_duration_from_content', [$id, $DB]);
+        $result = writing_stats::compute_duration_from_content($id, $DB);
         $this->assertSame(['session' => 0, 'typing' => 0], $result);
     }
 
@@ -238,7 +219,7 @@ final class externallib_test extends \advanced_testcase {
             $base, $base + 2000, $base + 2000 + $twodaysms, $base + 2000 + $twodaysms + 2000,
         ]);
 
-        $result = $this->call_private_static('compute_overview_stats_from_content', [$cmid, $DB]);
+        $result = writing_stats::compute_overview_stats_from_content($cmid, $DB);
         $decoded = json_decode($result, true);
 
         $this->assertLessThan(

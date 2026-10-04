@@ -16,7 +16,7 @@
 - [ ] No hardcoded user-facing strings — added/updated entries in `lang/en/tiny_authory_tech.php` via `get_string()`
 - [ ] If `amd/src/*.js` changed: rebuilt `amd/build/` via Grunt and committed both (see `CLAUDE.md` for the Docker build steps) — never hand-edited `amd/build/`
 - [ ] If the DB schema changed: bumped `version.php` and added an upgrade step with a savepoint in `db/upgrade.php`
-- [ ] If a new web service function was added: declared it in both `db/services.php` and `externallib.php`
+- [ ] If a new web service function was added: declared it in `db/services.php` and implemented it as a class in `classes/external/`
 - [ ] If a new capability/event/hook was added: declared it in `db/access.php` / `db/events.php` / `db/hooks.php`
 - [ ] Tested against the Docker dev environment (`docker compose up -d`) where applicable
 
