@@ -24,6 +24,7 @@
 
 namespace tiny_authory_tech\check;
 
+use action_link;
 use core\check\check;
 use core\check\result;
 use html_writer;
@@ -58,10 +59,13 @@ class webservices extends check {
     /**
      * Return the action link for resolving this check, if any.
      *
-     * @return \core\url|null
+     * @return action_link|null
      */
-    public function get_action_link(): ?\core\url {
-        return new \core\url('/admin/webservice/overview.php');
+    public function get_action_link(): ?action_link {
+        return new action_link(
+            new moodle_url('/admin/webservice/overview.php'),
+            get_string('check_webservices_action', 'tiny_authory_tech')
+        );
     }
 
     /**

@@ -1,6 +1,18 @@
 name: Moodle Plugin CI
 
-on: [pull_request]
+on:
+  pull_request: {}
+  push:
+    branches: [main, develop]
+  workflow_dispatch: {}
+
+# A push to a branch that also has an open PR fires both `push` and `pull_request`
+# for the same commit. `github.ref` differs between the two events for the same
+# branch (refs/heads/x vs refs/pull/N/merge), so it wouldn't unify them — the
+# head branch name (head_ref for pull_request, ref_name for push) does.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -73,16 +85,47 @@ jobs:
           "
 
   # -----------------------------------------------------------------------
-  # Full Moodle test matrix — only runs when lint passes.
+  # JS unit tests for the pure logic in amd/src (Jest). Independent of the
+  # Moodle install matrix below — no Moodle instance needed for these.
+  # -----------------------------------------------------------------------
+  js-test:
+    name: JS Unit Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest
+        run: npm test
+
+  # -----------------------------------------------------------------------
+  # Full, exhaustive Moodle test matrix — runs on every PR and on every push
+  # to main/develop, once lint passes. There is no separate lighter/heavier
+  # split: this is the only test job, and it always runs the full matrix.
   # -----------------------------------------------------------------------
   test:
-    name: Test (PHP ${{ matrix.php }}, ${{ matrix.database }})
+    name: Test (PHP ${{ matrix.php }}, ${{ matrix.database }}, ${{ matrix.moodle-branch }})
     runs-on: ubuntu-22.04
     needs: lint
+    # Moodle 5.x support is still being verified — don't let a known 5.x-only
+    # gap block merges while 4.5 (the officially supported branch) stays a hard gate.
+    continue-on-error: ${{ matrix.moodle-branch != 'MOODLE_405_STABLE' }}
 
     services:
+      # Postgres 16 is Moodle 5.2's minimum (per moodle-plugin-ci's changelog); newer-than-minimum
+      # is always safe for the older 4.5 leg too, so this is bumped globally rather than per-branch.
       postgres:
-        image: postgres:13
+        image: postgres:16
         env:
           POSTGRES_USER: "postgres"
           POSTGRES_HOST_AUTH_METHOD: "trust"
@@ -104,9 +147,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ["8.2"]
-        moodle-branch: ["MOODLE_405_STABLE"]
-        database: [mariadb]
+        php: ["8.1", "8.2", "8.3"]
+        moodle-branch: ["MOODLE_405_STABLE", "MOODLE_502_STABLE"]
+        database: [mariadb, pgsql]
+        # Moodle 5.2 requires PHP >=8.3 (composer.json); 8.1/8.2 fail at Moodle's own
+        # `composer install` before any of our checks even run — not a real gap to test.
+        exclude:
+          - php: "8.1"
+            moodle-branch: "MOODLE_502_STABLE"
+          - php: "8.2"
+            moodle-branch: "MOODLE_502_STABLE"
 
     steps:
       - name: Check out repository code
@@ -151,6 +201,49 @@ jobs:
       - name: Moodle PHPDoc Checker
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci phpdoc --max-warnings 0
+
+      # PHPStan isn't bundled with moodle-plugin-ci, so it's installed standalone here.
+      # micaherne/phpstan-moodle bootstraps Moodle's classloader so plugin code that
+      # references core classes/aliases resolves correctly; it needs a real Moodle
+      # checkout with `composer install` already run there, which moodle-plugin-ci's
+      # install step (above) provides via ci/.env's MOODLE_DIR.
+      #
+      # continue-on-error on all three steps below: this integration is unofficial
+      # (no moodle-plugin-ci support) and has broken across Moodle-branch/docroot-layout
+      # edge cases twice already. It must never be able to mask the real, official
+      # moodle-plugin-ci checks (phpcs/phpunit/behat/etc.) that run after it.
+      - name: Load Moodle install path
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: cat ci/.env >> "$GITHUB_ENV"
+
+      - name: Install PHPStan (Moodle-aware)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          mkdir -p phpstan-tools
+          cd phpstan-tools
+          composer init -n -q \
+            --require=phpstan/phpstan:^2.1 \
+            --require=micaherne/phpstan-moodle:^1.1 \
+            --require=phpstan/extension-installer:^1.4
+          composer config --no-plugins allow-plugins.phpstan/extension-installer true
+          composer install --no-interaction -q
+
+      - name: PHPStan static analysis
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          # Moodle 5.1+ moves the real docroot (dirroot) to $MOODLE_DIR/public; the
+          # bootstrap must scan that, not the outer checkout, or file-based requires
+          # computed from $CFG->dirroot resolve to paths phpstan-moodle never scanned.
+          if [ -d "${MOODLE_DIR}/public" ]; then
+            MOODLE_ROOT="${MOODLE_DIR}/public"
+          else
+            MOODLE_ROOT="${MOODLE_DIR}"
+          fi
+          sed "s#__MOODLE_ROOT__#${MOODLE_ROOT}#" plugin/phpstan.neon.dist > plugin/phpstan.neon
+          php -d memory_limit=1G phpstan-tools/vendor/bin/phpstan analyse -c plugin/phpstan.neon --no-progress
 
       - name: Validating
         if: ${{ !cancelled() }}

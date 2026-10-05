@@ -35,11 +35,11 @@ Example context (json):
     <!-- Header -->
     <div class="authory-dash-header">
         <a href="{{assign_url}}" class="authory-dash-back">
-            <i class="fa fa-arrow-left"></i> Back to Assignment
+            <i class="fa fa-arrow-left"></i> {{#str}}assign_dashboard_back, tiny_authory_tech{{/str}}
         </a>
         <div class="authory-dash-header-center">
             <h1>{{assignment_name}}</h1>
-            <p>Writing Analytics Dashboard &mdash; <a href="{{course_url}}">{{course_name}}</a></p>
+            <p>{{#str}}assign_dashboard_subtitle, tiny_authory_tech{{/str}} &mdash; <a href="{{course_url}}">{{course_name}}</a></p>
         </div>
         <div style="width:120px;"></div>
     </div>
@@ -48,19 +48,19 @@ Example context (json):
     <div class="authory-stats-grid">
         <div class="authory-stat-card">
             <span class="authory-stat-number" id="authory-overview-total">—</span>
-            <div class="authory-stat-label">Total Students</div>
+            <div class="authory-stat-label">{{#str}}assign_dashboard_total_students, tiny_authory_tech{{/str}}</div>
         </div>
         <div class="authory-stat-card">
             <span class="authory-stat-number" id="authory-overview-avg-wpm">—</span>
-            <div class="authory-stat-label">Avg Typing Speed (WPM)</div>
+            <div class="authory-stat-label">{{#str}}assign_dashboard_avg_wpm, tiny_authory_tech{{/str}}</div>
         </div>
         <div class="authory-stat-card">
             <span class="authory-stat-number" id="authory-overview-avg-time">—</span>
-            <div class="authory-stat-label">Avg Time on Assignment</div>
+            <div class="authory-stat-label">{{#str}}assign_dashboard_avg_time, tiny_authory_tech{{/str}}</div>
         </div>
         <div class="authory-stat-card">
             <span class="authory-stat-number" id="authory-overview-submissions">—</span>
-            <div class="authory-stat-label">Submissions with Data</div>
+            <div class="authory-stat-label">{{#str}}assign_dashboard_submissions_with_data, tiny_authory_tech{{/str}}</div>
         </div>
     </div>
 
@@ -71,7 +71,7 @@ Example context (json):
     <div class="authory-tabs-wrap">
         <div class="authory-tabs">
             <button class="authory-tab active" data-tab="authory-overview">
-                &#x1F4CA; Overview
+                &#x1F4CA; {{#str}}assign_dashboard_overview_tab, tiny_authory_tech{{/str}}
             </button>
             {{! Student tabs injected dynamically by assign_dashboard.js }}
         </div>
@@ -79,13 +79,13 @@ Example context (json):
         <!-- ===== OVERVIEW TAB ===== -->
         <div id="authory-overview" class="authory-tab-content active">
             <div class="authory-chart-section">
-                <h3>&#x1F4C8; Class Typing Speed Comparison</h3>
+                <h3>&#x1F4C8; {{#str}}assign_dashboard_typing_chart_title, tiny_authory_tech{{/str}}</h3>
                 <div class="authory-chart-container">
                     <canvas id="authory-typing-chart"></canvas>
                 </div>
             </div>
             <div class="authory-chart-section">
-                <h3>&#x23F1;&#xFE0F; Time Spent on Assignment</h3>
+                <h3>&#x23F1;&#xFE0F; {{#str}}assign_dashboard_time_chart_title, tiny_authory_tech{{/str}}</h3>
                 <div class="authory-chart-container">
                     <canvas id="authory-time-chart"></canvas>
                 </div>

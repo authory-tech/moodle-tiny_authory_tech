@@ -27,7 +27,6 @@
 import templates from "core/templates";
 import $ from 'jquery';
 import Alert from 'core/modal';
-import Factory from 'core/modal_factory';
 import ModalEvents from 'core/modal_events';
 import * as str from 'core/str';
 
@@ -39,7 +38,6 @@ export const init = (data) => {
 
     if (!Object.keys(data).length) {
         Alert.create({
-            type: Factory.types.ALERT,
             title: str.get_string('message', 'tool_dataprivacy'),
             body: str.get_string('nopaylod', 'tiny_authory_tech'),
             cssClass: 'modal-dialog modal-dialog-centered'

@@ -59,7 +59,9 @@ export default new Promise((resolve, reject) => {
                             JSON.parse(data.rubrics),
                             JSON.parse(data.submission),
                             JSON.parse(data.quizinfo),
-                            data.pastesetting
+                            data.pastesetting,
+                            data.state_popup_enabled,
+                            data.course_fullname
                         );
                 }
                 }).fail((error) => {
