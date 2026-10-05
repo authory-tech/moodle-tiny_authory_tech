@@ -3,7 +3,7 @@
   "private": true,
   "description": "Unit tests for tiny_authory_tech's pure AMD JS logic (amd/src). Not part of the Moodle plugin runtime — dev-only tooling.",
   "scripts": {
-    "test": "jest amd/src"
+    "test": "jest tests/js"
   },
   "devDependencies": {
     "jest": "^29.7.0"

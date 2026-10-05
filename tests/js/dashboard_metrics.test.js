@@ -1,4 +1,4 @@
-const {formatDuration, resolveTypingSpeedDisplay} = require('./dashboard_metrics');
+const {formatDuration, resolveTypingSpeedDisplay} = require('../../amd/src/dashboard_metrics');
 
 describe('formatDuration', () => {
     test('zero or negative seconds render as an em dash', () => {
