@@ -2,6 +2,10 @@
 
 All notable changes to the `tiny_authory_tech` Moodle plugin are documented here.
 
+## [0.3.2] - 2026-10-22
+
+Re-upload of 0.3.1 for the plugins directory's automated checks, which did not run on it. No functional changes.
+
 ## [0.3.1] - 2026-10-22
 
 Covers the unreleased 0.3.0 and the 0.2.x development releases as well.

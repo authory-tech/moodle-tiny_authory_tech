@@ -29,8 +29,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'tiny_authory_tech';
-$plugin->release = '0.3.1';
-$plugin->version = 2026102200;
+$plugin->release = '0.3.2';
+$plugin->version = 2026102201;
 $plugin->requires  = 2024100700;
 $plugin->supported = [405, 502];
 $plugin->maturity  = MATURITY_STABLE;
