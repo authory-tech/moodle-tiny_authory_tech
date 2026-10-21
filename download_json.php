@@ -25,32 +25,19 @@
  */
 
 require(__DIR__ . '/../../../../../config.php');
-require_once(__DIR__ . '/locallib.php');
-use tiny_authory_tech\constants;
-global $DB, $USER;
+use tiny_authory_tech\helper;
+
 require_login();
 require_sesskey();
 
-$resourceid = optional_param('resourceid', 0, PARAM_INT);
-$userid     = optional_param('user_id', 0, PARAM_INT);
-$cmid       = optional_param('cmid', 0, PARAM_INT);
-$courseid   = optional_param('course', 0, PARAM_INT);
-$fname      = clean_param(optional_param('fname', '', PARAM_FILE), PARAM_FILE);
-
-if ($cmid <= 0 || $userid <= 0) {
-    throw new moodle_exception('invalidparameters', 'tiny_authory_tech');
-}
-if (intval($USER->id) !== $userid && !constants::is_teacher_admin(context_course::instance($courseid))) {
-    throw new moodle_exception(get_string('warning', 'tiny_authory_tech'));
-}
-$context    = context_module::instance($cmid);
-require_capability('tiny/authory_tech:writingreport', $context);
-
-$filerow    = $DB->get_record('tiny_authory_tech_files', ['filename' => $fname]);
-if (!$fname || !$filerow || !$filerow->content) {
+// The course module and the owner are taken from the file record, never from the request:
+// helper::require_file_page_access() logs in to the record's module and checks the user owns
+// the file or holds tiny/authory_tech:view there.
+$fileid  = required_param('fileid', PARAM_INT);
+$filerow = helper::require_file_page_access($fileid);
+if (!$filerow->content) {
     redirect(get_local_referer(false), get_string('filenotfound', 'tiny_authory_tech'));
 }
-
 
 $filename = $filerow->modulename . " " . get_string('student_writing_statics', 'tiny_authory_tech') . "_" . uniqid() . ".json";
 

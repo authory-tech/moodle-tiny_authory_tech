@@ -21,6 +21,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
+use tiny_authory_tech\helper;
 
 /**
  * External function authory_tech_get_writing_differences: return the stored writing difference data.
@@ -62,17 +63,11 @@ class get_writing_differences extends external_api {
             ],
         );
 
-        $filename = $DB->get_record(
-            'tiny_authory_tech_files',
-            ['id' => $vparams['fileid']],
-            'filename',
-        );
-        $parts = explode('_', $filename->filename);
-        $cmid = $parts[2];
-
-        $context = context_module::instance($cmid);
+        // The module and the owner come from the stored record, never from the request.
+        $file = $DB->get_record('tiny_authory_tech_files', ['id' => $vparams['fileid']], 'id, userid, cmid', MUST_EXIST);
+        $context = context_module::instance($file->cmid);
         self::validate_context($context);
-        require_capability("tiny/authory_tech:writingreport", $context);
+        helper::require_data_access((int) $file->userid, $context);
 
         $sql = "SELECT WD.*, CF.cmid, CF.resourceid, CF.modulename, COUNT(CC.id) AS commentscount, CF.userid, CF.questionid
                   FROM {tiny_authory_tech_writing_diff} WD
@@ -88,6 +83,8 @@ class get_writing_differences extends external_api {
         $params = ['fileid' => $vparams['fileid']];
         $data = $DB->get_record_sql($sql, $params);
         if ($data) {
+            // Same encoding as stored (base64 of a JSON string), but with the HTML cleaned.
+            $data->submitted_text = base64_encode(json_encode(helper::clean_submitted_text($data->submitted_text, $context)));
             $comments = $DB->get_records(
                 'tiny_authory_tech_comments',
                 [

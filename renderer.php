@@ -100,24 +100,13 @@ class tiny_authory_tech_renderer extends plugin_renderer_base {
                 html_writer::link(
                     new moodle_url('/lib/editor/tiny/plugins/authory_tech/download_json.php', [
                         'sesskey' => sesskey(),
-                        'fname'   => $user->filename,
-                        'user_id' => $user->usrid,
-                        'cmid'    => $user->cmid,
-                        'course'  => $courseid,
+                        'fileid'  => $user->fileid,
                         ]),
                     $dwnldicon . get_string('download', 'tiny_authory_tech'),
                     [
                         'class' => 'tiny_authory_tech-writing-report download-btn tiny_authory_tech-analytics-button',
                         'aria-describedby' => get_string('download_attempt_json', 'tiny_authory_tech'),
                         'role'  => 'button',
-                        'data-link' => constants::has_api_key()
-                            ? new moodle_url('/lib/editor/tiny/plugins/authory_tech/pdfexport.php', [
-                            'sesskey' => sesskey(),
-                            'id'      => $user->usrid,
-                            'file'    => $user->fileid,
-                            'cmid'    => $user->cmid,
-                            'course'  => $courseid,
-                            'qid'     => $user->questionid ?? 0]) : "",
                         ],
                 )
             );
@@ -259,24 +248,13 @@ class tiny_authory_tech_renderer extends plugin_renderer_base {
             $row['download']    = html_writer::link(
                 new moodle_url('/lib/editor/tiny/plugins/authory_tech/download_json.php', [
                     'sesskey' => sesskey(),
-                    'fname'   => $user->filename,
-                    'user_id' => $user->usrid,
-                    'cmid'    => $user->cmid,
-                    'course'  => $courseid,
+                    'fileid'  => $user->fileid,
                 ]),
                 $dwnldicon . get_string('download', 'tiny_authory_tech'),
                 [
                     'class' => 'tiny_authory_tech-writing-report download-btn tiny_authory_tech-analytics-button',
                     'aria-describedby' => get_string('download_attempt_json', 'tiny_authory_tech'),
                     'role'  => 'button',
-                    'data-link' => constants::has_api_key()
-                        ? new moodle_url('/lib/editor/tiny/plugins/authory_tech/pdfexport.php', [
-                        'sesskey' => sesskey(),
-                        'id'      => $user->usrid,
-                        'file'    => $user->fileid,
-                        'cmid'    => $user->cmid,
-                        'course'  => $courseid,
-                        'qid'     => $user->questionid ?? 0]) : "",
                 ],
             );
             $userdata[] = $row;

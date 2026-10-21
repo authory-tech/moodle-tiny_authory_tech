@@ -33,7 +33,6 @@ namespace tiny_authory_tech\local;
  * @covers \tiny_authory_tech\local\writing_stats
  */
 final class writing_stats_test extends \advanced_testcase {
-
     /**
      * Inserts a tiny_authory_tech_files row with the given delta-event timestamps
      * as its content, and returns the inserted id.
@@ -61,9 +60,7 @@ final class writing_stats_test extends \advanced_testcase {
         ]);
     }
 
-    // -------------------------------------------------------------------
-    // build_student_stats_payload() — Bug 2: silent error-masking
-    // -------------------------------------------------------------------
+    // Tests for build_student_stats_payload(): type-server errors must not be masked.
 
     public function test_payload_marks_stats_available_when_typeserver_succeeds(): void {
         $typeserver = json_encode(['avg_wpm' => 42.5, 'class_avg_wpm' => 38.0, 'wpm_diff' => '+4.50']);
@@ -120,7 +117,7 @@ final class writing_stats_test extends \advanced_testcase {
     }
 
     public function test_payload_falls_back_when_typeserver_duration_is_zero(): void {
-        // empty(0) is true in PHP — a type-server response with duration_seconds
+        // PHP's empty(0) is true: a type-server response with duration_seconds
         // explicitly 0 must still fall back to the local value, not keep the 0.
         $typeserver = json_encode(['avg_wpm' => 10, 'duration_seconds' => 0]);
         $merged = writing_stats::build_student_stats_payload(200, $typeserver, [
@@ -131,7 +128,7 @@ final class writing_stats_test extends \advanced_testcase {
     }
 
     public function test_payload_always_uses_local_pasted_texts(): void {
-        // "Always use local content as source of truth for paste texts" —
+        // Local content is the source of truth for paste texts: the
         // type-server's own value, if any, must never win.
         $typeserver = json_encode(['avg_wpm' => 10, 'pasted_texts' => ['from type-server']]);
         $merged = writing_stats::build_student_stats_payload(200, $typeserver, [
@@ -141,9 +138,7 @@ final class writing_stats_test extends \advanced_testcase {
         $this->assertSame(['local paste'], $merged['pasted_texts']);
     }
 
-    // -------------------------------------------------------------------
-    // compute_duration_from_content() — Bug 3: raw span vs. gap-capped time
-    // -------------------------------------------------------------------
+    // Tests for compute_duration_from_content(): raw span vs. gap-capped time.
 
     public function test_compute_duration_normal_typing_counts_toward_both(): void {
         $this->resetAfterTest();
@@ -201,9 +196,7 @@ final class writing_stats_test extends \advanced_testcase {
         $this->assertSame(['session' => 0, 'typing' => 0], $result);
     }
 
-    // -------------------------------------------------------------------
-    // compute_overview_stats_from_content() — Bug 3 at the class-overview level
-    // -------------------------------------------------------------------
+    // Tests for compute_overview_stats_from_content(): gap capping at the class-overview level.
 
     public function test_compute_overview_stats_multi_day_gap_does_not_balloon_class_average(): void {
         $this->resetAfterTest();

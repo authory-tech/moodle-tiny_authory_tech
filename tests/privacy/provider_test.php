@@ -25,17 +25,31 @@ use tiny_authory_tech\privacy\provider;
 /**
  * Privacy provider tests for tiny_authory_tech.
  *
+ * Every path must cover the four tables that hold personal data: files, comments, writing
+ * statistics and writing differences.
+ *
  * @package    tiny_authory_tech
  * @copyright  2026 SEPTUM QA <info@authory.tech>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers \tiny_authory_tech\privacy\provider
  */
 final class provider_test extends \core_privacy\tests\provider_testcase {
+    /** @var string[] The tables holding personal data. */
+    private const TABLES = [
+        'tiny_authory_tech_files',
+        'tiny_authory_tech_comments',
+        'tiny_authory_tech_user_writing',
+        'tiny_authory_tech_writing_diff',
+    ];
+
     /** @var \stdClass Course used across tests. */
     private \stdClass $course;
 
     /** @var \stdClass Course module used across tests. */
     private \stdClass $cm;
+
+    /** @var \stdClass A second course module in the same course. */
+    private \stdClass $othercm;
 
     protected function setUp(): void {
         parent::setUp();
@@ -45,248 +59,211 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
         $this->course = $generator->create_course();
         $assign = $generator->create_module('assign', ['course' => $this->course->id]);
         $this->cm = get_coursemodule_from_instance('assign', $assign->id, $this->course->id);
+        $other = $generator->create_module('assign', ['course' => $this->course->id]);
+        $this->othercm = get_coursemodule_from_instance('assign', $other->id, $this->course->id);
     }
 
-    // Metadata.
-
-    public function test_get_metadata_returns_collection(): void {
-        $collection = new \core_privacy\local\metadata\collection('tiny_authory_tech');
-        $result = provider::get_metadata($collection);
-        $this->assertInstanceOf(\core_privacy\local\metadata\collection::class, $result);
-    }
-
-    public function test_get_metadata_declares_files_table(): void {
-        $collection = new \core_privacy\local\metadata\collection('tiny_authory_tech');
-        provider::get_metadata($collection);
-
-        $items = $collection->get_collection();
-        $tablenames = array_map(fn($item) => $item->get_name(), $items);
-
-        $this->assertContains(
-            'tiny_authory_tech_files',
-            $tablenames,
-            'Provider must declare the tiny_authory_tech_files table in its metadata'
-        );
-    }
-
-    public function test_get_metadata_declares_comments_table(): void {
-        $collection = new \core_privacy\local\metadata\collection('tiny_authory_tech');
-        provider::get_metadata($collection);
-
-        $items = $collection->get_collection();
-        $tablenames = array_map(fn($item) => $item->get_name(), $items);
-
-        $this->assertContains(
-            'tiny_authory_tech_comments',
-            $tablenames,
-            'Provider must declare the tiny_authory_tech_comments table in its metadata'
-        );
-    }
-
-    // Context list.
-
-    public function test_get_contexts_for_userid_returns_context_with_data(): void {
+    /**
+     * Store a writing session for a user: a file with its statistics and differences, and a comment.
+     *
+     * @param int $userid The user.
+     * @param \stdClass $cm The course module.
+     * @return int The file id.
+     */
+    private function create_session(int $userid, \stdClass $cm): int {
         global $DB;
 
-        $user = $this->getDataGenerator()->create_user();
-        $context = \context_module::instance($this->cm->id);
-
-        $record = (object)[
-            'userid' => $user->id,
-            'cmid' => $this->cm->id,
-            'courseid' => $this->course->id,
-            'filename' => 'test.json',
+        $fileid = $DB->insert_record('tiny_authory_tech_files', (object) [
+            'userid' => $userid,
+            'cmid' => $cm->id,
+            'courseid' => $cm->course,
+            'filename' => "{$userid}_{$cm->id}_{$cm->id}_attempt.json",
             'modulename' => 'assign',
-            'resourceid' => 1,
+            'resourceid' => $cm->id,
+            'content' => json_encode([['t' => 1, 'd' => [], 'meta' => 'keystroke']]),
+            'original_content' => "Essay of {$userid}",
             'uploaded' => 0,
             'timemodified' => time(),
-        ];
-        $DB->insert_record('tiny_authory_tech_files', $record);
-
-        $contextlist = provider::get_contexts_for_userid($user->id);
-        $contextids = $contextlist->get_contextids();
-
-        $this->assertContainsEquals(
-            $context->id,
-            $contextids,
-            'The module context should be returned for a user with file data'
-        );
+        ]);
+        $DB->insert_record('tiny_authory_tech_user_writing', (object) [
+            'file_id' => $fileid,
+            'total_time_seconds' => 60,
+            'key_count' => 100,
+            'keys_per_minute' => 100,
+            'word_count' => 20,
+        ]);
+        $DB->insert_record('tiny_authory_tech_writing_diff', (object) [
+            'file_id' => $fileid,
+            'reconstructed_text' => "Essay of {$userid}",
+            'submitted_text' => base64_encode(json_encode("<p>Essay of {$userid}</p>")),
+            'meta' => '0.5',
+        ]);
+        $this->create_comment($userid, $cm);
+        return $fileid;
     }
 
-    public function test_get_contexts_for_userid_returns_empty_for_no_data(): void {
-        $user = $this->getDataGenerator()->create_user();
-        $contextlist = provider::get_contexts_for_userid($user->id);
-
-        $this->assertEmpty(
-            $contextlist->get_contextids(),
-            'No contexts should be returned for a user with no data'
-        );
-    }
-
-    // Export.
-
-    public function test_export_user_data_writes_file_records(): void {
+    /**
+     * Store a comment for a user.
+     *
+     * @param int $userid The user.
+     * @param \stdClass $cm The course module.
+     */
+    private function create_comment(int $userid, \stdClass $cm): void {
         global $DB;
 
-        $user = $this->getDataGenerator()->create_user();
-        $context = \context_module::instance($this->cm->id);
-
-        $record = (object)[
-            'userid' => $user->id,
-            'cmid' => $this->cm->id,
-            'courseid' => $this->course->id,
-            'filename' => 'writing.json',
+        $DB->insert_record('tiny_authory_tech_comments', (object) [
+            'userid' => $userid,
+            'cmid' => $cm->id,
+            'courseid' => $cm->course,
             'modulename' => 'assign',
-            'resourceid' => 1,
-            'uploaded' => 0,
+            'resourceid' => $cm->id,
+            'questionid' => 0,
+            'usercomment' => "Comment of {$userid}",
             'timemodified' => time(),
-        ];
-        $DB->insert_record('tiny_authory_tech_files', $record);
-
-        $contextlist = new approved_contextlist($user, 'tiny_authory_tech', [$context->id]);
-        provider::export_user_data($contextlist);
-
-        // The writer should have received data for this context.
-        $writer = writer::with_context($context);
-        $this->assertTrue(
-            $writer->has_any_data(),
-            'Export should write data for the user\'s context'
-        );
+        ]);
     }
 
-    // Deletion.
-
-    public function test_delete_data_for_all_users_in_context_removes_records(): void {
+    /**
+     * Count the rows of a user in a course module, in each of the four tables.
+     *
+     * @param int $userid The user.
+     * @param \stdClass $cm The course module.
+     * @return int[] Row count per table.
+     */
+    private function count_rows(int $userid, \stdClass $cm): array {
         global $DB;
 
-        $user1 = $this->getDataGenerator()->create_user();
-        $user2 = $this->getDataGenerator()->create_user();
-        $context = \context_module::instance($this->cm->id);
-
-        foreach ([$user1->id, $user2->id] as $uid) {
-            $record = (object)[
-                'userid' => $uid,
-                'cmid' => $this->cm->id,
-                'courseid' => $this->course->id,
-                'filename' => 'test.json',
-                'modulename' => 'assign',
-                'resourceid' => 1,
-                'uploaded' => 0,
-                'timemodified' => time(),
-            ];
-            $DB->insert_record('tiny_authory_tech_files', $record);
+        $counts = [];
+        $params = ['userid' => $userid, 'cmid' => $cm->id];
+        foreach (['tiny_authory_tech_files', 'tiny_authory_tech_comments'] as $table) {
+            $counts[$table] = $DB->count_records($table, $params);
         }
-
-        $this->assertSame(2, $DB->count_records('tiny_authory_tech_files', ['cmid' => $this->cm->id]));
-
-        provider::delete_data_for_all_users_in_context($context);
-
-        $this->assertSame(
-            0,
-            $DB->count_records('tiny_authory_tech_files', ['cmid' => $this->cm->id]),
-            'All records for the context should be deleted'
-        );
-    }
-
-    public function test_delete_data_for_user_removes_only_that_user(): void {
-        global $DB;
-
-        $user1 = $this->getDataGenerator()->create_user();
-        $user2 = $this->getDataGenerator()->create_user();
-        $context = \context_module::instance($this->cm->id);
-
-        foreach ([$user1->id, $user2->id] as $uid) {
-            $record = (object)[
-                'userid' => $uid,
-                'cmid' => $this->cm->id,
-                'courseid' => $this->course->id,
-                'filename' => 'test.json',
-                'modulename' => 'assign',
-                'resourceid' => 1,
-                'uploaded' => 0,
-                'timemodified' => time(),
-            ];
-            $DB->insert_record('tiny_authory_tech_files', $record);
+        foreach (['tiny_authory_tech_user_writing', 'tiny_authory_tech_writing_diff'] as $table) {
+            $counts[$table] = $DB->count_records_sql(
+                "SELECT COUNT(1)
+                   FROM {{$table}} t
+                   JOIN {tiny_authory_tech_files} f ON f.id = t.file_id
+                  WHERE f.userid = :userid AND f.cmid = :cmid",
+                $params
+            );
         }
-
-        $contextlist = new approved_contextlist($user1, 'tiny_authory_tech', [$context->id]);
-        provider::delete_data_for_user($contextlist);
-
-        $this->assertSame(
-            0,
-            $DB->count_records('tiny_authory_tech_files', ['userid' => $user1->id]),
-            'User 1 records should be deleted'
-        );
-        $this->assertSame(
-            1,
-            $DB->count_records('tiny_authory_tech_files', ['userid' => $user2->id]),
-            'User 2 records must not be deleted'
-        );
+        return $counts;
     }
 
-    // Userlist.
+    public function test_get_metadata_declares_every_table(): void {
+        $collection = provider::get_metadata(new \core_privacy\local\metadata\collection('tiny_authory_tech'));
+        $names = array_map(fn($item) => $item->get_name(), $collection->get_collection());
 
-    public function test_get_users_in_context_returns_users_with_data(): void {
-        global $DB;
+        foreach (self::TABLES as $table) {
+            $this->assertContains($table, $names);
+        }
+        $this->assertContains('api.authory.tech', $names);
+    }
 
-        $user = $this->getDataGenerator()->create_user();
+    public function test_get_contexts_for_userid(): void {
+        $withfile = $this->getDataGenerator()->create_user();
+        $withcomment = $this->getDataGenerator()->create_user();
+        $nodata = $this->getDataGenerator()->create_user();
+        $this->create_session($withfile->id, $this->cm);
+        $this->create_comment($withcomment->id, $this->othercm);
+
         $context = \context_module::instance($this->cm->id);
+        $this->assertEquals([$context->id], provider::get_contexts_for_userid($withfile->id)->get_contextids());
 
-        $record = (object)[
-            'userid' => $user->id,
-            'cmid' => $this->cm->id,
-            'courseid' => $this->course->id,
-            'filename' => 'test.json',
-            'modulename' => 'assign',
-            'resourceid' => 1,
-            'uploaded' => 0,
-            'timemodified' => time(),
-        ];
-        $DB->insert_record('tiny_authory_tech_files', $record);
+        $othercontext = \context_module::instance($this->othercm->id);
+        $this->assertEquals([$othercontext->id], provider::get_contexts_for_userid($withcomment->id)->get_contextids());
 
-        $userlist = new userlist($context, 'tiny_authory_tech');
+        $this->assertEmpty(provider::get_contexts_for_userid($nodata->id)->get_contextids());
+    }
+
+    public function test_get_users_in_context(): void {
+        $withfile = $this->getDataGenerator()->create_user();
+        $withcomment = $this->getDataGenerator()->create_user();
+        $elsewhere = $this->getDataGenerator()->create_user();
+        $this->create_session($withfile->id, $this->cm);
+        $this->create_comment($withcomment->id, $this->cm);
+        $this->create_session($elsewhere->id, $this->othercm);
+
+        $userlist = new userlist(\context_module::instance($this->cm->id), 'tiny_authory_tech');
         provider::get_users_in_context($userlist);
+        $userids = $userlist->get_userids();
+        sort($userids);
+        $this->assertEquals([$withfile->id, $withcomment->id], $userids);
 
-        $this->assertContainsEquals(
-            $user->id,
-            $userlist->get_userids(),
-            'User with data in context should appear in the userlist'
-        );
+        $courselist = new userlist(\context_course::instance($this->course->id), 'tiny_authory_tech');
+        provider::get_users_in_context($courselist);
+        $this->assertEmpty($courselist->get_userids());
     }
 
-    public function test_delete_data_for_users_removes_listed_users_only(): void {
-        global $DB;
-
-        $user1 = $this->getDataGenerator()->create_user();
-        $user2 = $this->getDataGenerator()->create_user();
+    public function test_export_user_data_covers_every_table(): void {
+        $user = $this->getDataGenerator()->create_user();
+        $other = $this->getDataGenerator()->create_user();
+        $fileid = $this->create_session($user->id, $this->cm);
+        $this->create_session($other->id, $this->cm);
         $context = \context_module::instance($this->cm->id);
 
-        foreach ([$user1->id, $user2->id] as $uid) {
-            $record = (object)[
-                'userid' => $uid,
-                'cmid' => $this->cm->id,
-                'courseid' => $this->course->id,
-                'filename' => 'test.json',
-                'modulename' => 'assign',
-                'resourceid' => 1,
-                'uploaded' => 0,
-                'timemodified' => time(),
-            ];
-            $DB->insert_record('tiny_authory_tech_files', $record);
-        }
+        $this->export_context_data_for_user($user->id, $context, 'tiny_authory_tech');
 
-        $userlist = new approved_userlist($context, 'tiny_authory_tech', [$user1->id]);
-        provider::delete_data_for_users($userlist);
+        $writer = writer::with_context($context);
+        $pluginname = get_string('pluginname', 'tiny_authory_tech');
+        $session = [$pluginname, get_string('privacy:path:session', 'tiny_authory_tech', $fileid)];
 
-        $this->assertSame(
-            0,
-            $DB->count_records('tiny_authory_tech_files', ['userid' => $user1->id]),
-            'User 1 data should be deleted'
-        );
-        $this->assertSame(
-            1,
-            $DB->count_records('tiny_authory_tech_files', ['userid' => $user2->id]),
-            'User 2 data should remain'
-        );
+        $data = $writer->get_data($session);
+        $this->assertSame("Essay of {$user->id}", $data->submission);
+        $this->assertEquals(20, $data->statistics->word_count);
+        $this->assertSame("<p>Essay of {$user->id}</p>", $data->differences->submitted_text);
+        $this->assertNotEmpty($writer->get_custom_file($session, 'keystrokes.json'));
+
+        $comments = $writer->get_data([$pluginname, get_string('privacy:path:comments', 'tiny_authory_tech')]);
+        $this->assertCount(1, $comments->comments);
+        $this->assertSame("Comment of {$user->id}", $comments->comments[0]->comment);
+    }
+
+    public function test_delete_data_for_all_users_in_context(): void {
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        $this->create_session($user1->id, $this->cm);
+        $this->create_session($user2->id, $this->cm);
+        $this->create_session($user1->id, $this->othercm);
+
+        // A course context is not one of ours and must leave everything in place.
+        provider::delete_data_for_all_users_in_context(\context_course::instance($this->course->id));
+        $this->assertEquals(array_fill_keys(self::TABLES, 1), $this->count_rows($user1->id, $this->cm));
+
+        provider::delete_data_for_all_users_in_context(\context_module::instance($this->cm->id));
+
+        $this->assertEquals(array_fill_keys(self::TABLES, 0), $this->count_rows($user1->id, $this->cm));
+        $this->assertEquals(array_fill_keys(self::TABLES, 0), $this->count_rows($user2->id, $this->cm));
+        $this->assertEquals(array_fill_keys(self::TABLES, 1), $this->count_rows($user1->id, $this->othercm));
+    }
+
+    public function test_delete_data_for_user(): void {
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        $this->create_session($user1->id, $this->cm);
+        $this->create_session($user2->id, $this->cm);
+        $this->create_session($user1->id, $this->othercm);
+
+        $context = \context_module::instance($this->cm->id);
+        provider::delete_data_for_user(new approved_contextlist($user1, 'tiny_authory_tech', [$context->id]));
+
+        $this->assertEquals(array_fill_keys(self::TABLES, 0), $this->count_rows($user1->id, $this->cm));
+        $this->assertEquals(array_fill_keys(self::TABLES, 1), $this->count_rows($user2->id, $this->cm));
+        $this->assertEquals(array_fill_keys(self::TABLES, 1), $this->count_rows($user1->id, $this->othercm));
+    }
+
+    public function test_delete_data_for_users(): void {
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        $this->create_session($user1->id, $this->cm);
+        $this->create_session($user2->id, $this->cm);
+        $this->create_session($user1->id, $this->othercm);
+
+        $context = \context_module::instance($this->cm->id);
+        provider::delete_data_for_users(new approved_userlist($context, 'tiny_authory_tech', [$user1->id]));
+
+        $this->assertEquals(array_fill_keys(self::TABLES, 0), $this->count_rows($user1->id, $this->cm));
+        $this->assertEquals(array_fill_keys(self::TABLES, 1), $this->count_rows($user2->id, $this->cm));
+        $this->assertEquals(array_fill_keys(self::TABLES, 1), $this->count_rows($user1->id, $this->othercm));
     }
 }

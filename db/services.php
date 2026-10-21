@@ -126,14 +126,6 @@ $functions = [
         'capabilities' => 'tiny/authory_tech:view',
     ],
 
-    'authory_tech_filtered_writing' => [
-        'classname' => 'tiny_authory_tech\external\filtered_writing',
-        'description' => 'generate Reports for download',
-        'type' => 'read',
-        'ajax' => true,
-        'loginrequired' => true,
-        'capabilities' => 'tiny/authory_tech:view',
-    ],
     'authory_tech_store_user_writing' => [
         'classname' => 'tiny_authory_tech\external\store_user_writing',
         'description' => 'Storing User Writings',
@@ -283,7 +275,6 @@ $services = [
             'authory_tech_get_assign_grade_comment',
             'authory_tech_store_user_writing',
             'authory_tech_get_reply_json',
-            'authory_tech_filtered_writing',
             'authory_tech_get_writing_statistics',
             'authory_tech_store_writing_differences',
             'authory_tech_get_writing_differences',

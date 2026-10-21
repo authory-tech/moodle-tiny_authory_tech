@@ -25,22 +25,28 @@
  */
 namespace tiny_authory_tech\privacy;
 
-use core_privacy\local\request\approved_contextlist;
-use core_privacy\local\request\contextlist;
-use core_privacy\local\request\writer;
+use context;
+use context_module;
 use core_privacy\local\metadata\collection;
-use core_privacy\local\request\userlist;
-use core_privacy\local\request\approved_userlist;
 use core_privacy\local\metadata\provider as meta_provider;
+use core_privacy\local\request\approved_contextlist;
+use core_privacy\local\request\approved_userlist;
+use core_privacy\local\request\contextlist;
 use core_privacy\local\request\core_userlist_provider;
 use core_privacy\local\request\plugin\provider as plugin_provider;
-use stdClass;
 use core_privacy\local\request\transform;
-use context;
-
+use core_privacy\local\request\userlist;
+use core_privacy\local\request\writer;
+use stdClass;
 
 /**
  * Privacy Subsystem implementation for tiny_authory_tech.
+ *
+ * All personal data lives in four tables, keyed by course module: the keystroke files
+ * (tiny_authory_tech_files) and the comments and autosaves (tiny_authory_tech_comments) hold a
+ * userid, and the writing statistics (tiny_authory_tech_user_writing) and writing differences
+ * (tiny_authory_tech_writing_diff) belong to the user of the file they point at. Export and the
+ * three deletion paths all cover the four tables.
  *
  * @copyright  Cursive Technology, Inc. <info@cursivetechnology.com>
  * @copyright  2026 SEPTUM QA <info@authory.tech>
@@ -55,7 +61,6 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
      * @return collection A listing of user data stored through this system.
      */
     public static function get_metadata(collection $collection): collection {
-        // There isn't much point giving details about the pageid, etc.
         $collection->add_database_table('tiny_authory_tech_files', [
             'userid' => 'privacy:metadata:database:tiny_authory_tech:userid',
             'content' => 'privacy:metadata:database:tiny_authory_tech:content',
@@ -69,12 +74,34 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
             'timemodified' => 'privacy:metadata:database:tiny_authory_tech_comments:timemodified',
         ], 'privacy:metadata:database:tiny_authory_tech_comments');
 
+        $collection->add_database_table('tiny_authory_tech_user_writing', [
+            'file_id' => 'privacy:metadata:database:tiny_authory_tech_user_writing:file_id',
+            'total_time_seconds' => 'privacy:metadata:database:tiny_authory_tech_user_writing:total_time_seconds',
+            'key_count' => 'privacy:metadata:database:tiny_authory_tech_user_writing:key_count',
+            'keys_per_minute' => 'privacy:metadata:database:tiny_authory_tech_user_writing:keys_per_minute',
+            'character_count' => 'privacy:metadata:database:tiny_authory_tech_user_writing:character_count',
+            'characters_per_minute' => 'privacy:metadata:database:tiny_authory_tech_user_writing:characters_per_minute',
+            'word_count' => 'privacy:metadata:database:tiny_authory_tech_user_writing:word_count',
+            'words_per_minute' => 'privacy:metadata:database:tiny_authory_tech_user_writing:words_per_minute',
+            'backspace_percent' => 'privacy:metadata:database:tiny_authory_tech_user_writing:backspace_percent',
+            'score' => 'privacy:metadata:database:tiny_authory_tech_user_writing:score',
+            'copy_behavior' => 'privacy:metadata:database:tiny_authory_tech_user_writing:copy_behavior',
+        ], 'privacy:metadata:database:tiny_authory_tech_user_writing');
+
+        $collection->add_database_table('tiny_authory_tech_writing_diff', [
+            'file_id' => 'privacy:metadata:database:tiny_authory_tech_writing_diff:file_id',
+            'reconstructed_text' => 'privacy:metadata:database:tiny_authory_tech_writing_diff:reconstructed_text',
+            'submitted_text' => 'privacy:metadata:database:tiny_authory_tech_writing_diff:submitted_text',
+            'meta' => 'privacy:metadata:database:tiny_authory_tech_writing_diff:meta',
+        ], 'privacy:metadata:database:tiny_authory_tech_writing_diff');
+
         $collection->add_external_location_link('api.authory.tech', [
             'userid' => 'privacy:metadata:database:tiny_authory_tech:userid',
+            'courseid' => 'privacy:metadata:api_authory_tech:courseid',
+            'cmid' => 'privacy:metadata:api_authory_tech:cmid',
             'content' => 'privacy:metadata:database:tiny_authory_tech:content',
             'original_content' => 'privacy:metadata:database:tiny_authory_tech:original_content',
-            'timemodified' => 'privacy:metadata:database:tiny_authory_tech:timemodified',
-        ], 'privacy:metadata:database:tiny_authory_tech');
+        ], 'privacy:metadata:api_authory_tech');
 
         return $collection;
     }
@@ -87,12 +114,16 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
      */
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
+        $params = ['contextlevel' => CONTEXT_MODULE, 'userid' => $userid];
 
-        $sql = "SELECT c.id
-                  FROM {tiny_authory_tech_files} f
-                  JOIN {context} c ON c.instanceid = f.cmid AND c.contextlevel = :contextlevel
-                 WHERE f.userid = :userid";
-        $contextlist->add_from_sql($sql, ['contextlevel' => CONTEXT_MODULE, 'userid' => $userid]);
+        // The statistics and differences tables only hold rows for files, so files and comments cover every context.
+        foreach (['tiny_authory_tech_files', 'tiny_authory_tech_comments'] as $table) {
+            $sql = "SELECT c.id
+                      FROM {context} c
+                      JOIN {{$table}} t ON t.cmid = c.instanceid
+                     WHERE c.contextlevel = :contextlevel AND t.userid = :userid";
+            $contextlist->add_from_sql($sql, $params);
+        }
 
         return $contextlist;
     }
@@ -104,90 +135,72 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
      */
     public static function get_users_in_context(userlist $userlist) {
         $context = $userlist->get_context();
+        if (!$context instanceof context_module) {
+            return;
+        }
 
-        $params = [
-            'cmid' => $context->instanceid,
-        ];
-
-        $sql = "SELECT userid
-                  FROM {tiny_authory_tech_files}
-                 WHERE cmid = :cmid";
-
-        $userlist->add_from_sql('userid', $sql, $params);
+        $params = ['cmid' => $context->instanceid];
+        $userlist->add_from_sql('userid', "SELECT userid FROM {tiny_authory_tech_files} WHERE cmid = :cmid", $params);
+        $userlist->add_from_sql('userid', "SELECT userid FROM {tiny_authory_tech_comments} WHERE cmid = :cmid", $params);
     }
 
     /**
      * Export all user data for the specified user, in the specified contexts.
      *
-     * @param   approved_contextlist    $contextlist    The approved contexts to export information for.
+     * Each writing session (keystroke file) is exported with its submission text, statistics and
+     * writing differences, and its keystroke log as a JSON file. Comments and autosaves are
+     * exported per context.
+     *
+     * @param approved_contextlist $contextlist The approved contexts to export information for.
      */
     public static function export_user_data(approved_contextlist $contextlist) {
         global $DB;
 
-        $user = $contextlist->get_user();
+        $userid = $contextlist->get_user()->id;
+        $pluginname = get_string('pluginname', 'tiny_authory_tech');
 
-        // Firstly export all autosave records from all contexts in the list owned by the given user.
-        [$contextsql, $contextparams] = $DB->get_in_or_equal($contextlist->get_contextids(), SQL_PARAMS_NAMED);
-        $contextparams['userid'] = $user->id;
-        $contextparams['contextlevel'] = CONTEXT_MODULE;
+        foreach ($contextlist->get_contexts() as $context) {
+            if (!$context instanceof context_module) {
+                continue;
+            }
+            $writer = writer::with_context($context);
+            $conditions = ['cmid' => $context->instanceid, 'userid' => $userid];
 
-        $sql = "SELECT eas.*, c.id AS contextid
-                  FROM {tiny_authory_tech_files} eas
-                  JOIN {context} c ON c.instanceid = eas.cmid AND c.contextlevel = :contextlevel
-                 WHERE eas.userid = :userid AND c.id {$contextsql}";
+            $files = $DB->get_records('tiny_authory_tech_files', $conditions, 'id');
+            foreach ($files as $file) {
+                $subcontext = [$pluginname, get_string('privacy:path:session', 'tiny_authory_tech', $file->id)];
+                $writer->export_data($subcontext, self::export_session($file));
+                if (!empty($file->content)) {
+                    $writer->export_custom_file($subcontext, 'keystrokes.json', $file->content);
+                }
+            }
 
-        $userfiledata = $DB->get_recordset_sql($sql, $contextparams);
-        self::export_autosaves($user, $userfiledata);
-
-        // Additionally export all eventual records in the given user's context regardless the actual owner.
-        // We still consider them to be the user's personal data even when edited by someone else.
-        [$contextsql, $contextparams] = $DB->get_in_or_equal($contextlist->get_contextids(), SQL_PARAMS_NAMED);
-        $contextparams['userid'] = $user->id;
-        $contextparams['contextlevel'] = CONTEXT_MODULE;
-
-        $sql = "SELECT eas.*, c.id AS contextid
-                  FROM {tiny_authory_tech_files} eas
-                  JOIN {context} c ON c.instanceid = eas.cmid AND c.contextlevel = :contextlevel
-                 WHERE eas.userid = :userid AND c.id {$contextsql}";
-
-        $autosaves = $DB->get_recordset_sql($sql, $contextparams);
-        self::export_autosaves($user, $autosaves);
-
-        $sql = "SELECT eas.*, c.id AS contextid
-                  FROM {tiny_authory_tech_user_writing} eas
-                  JOIN {tiny_authory_tech_files} tcf ON tcf.id = eas.file_id
-                  JOIN {context} c ON c.instanceid = tcf.cmid AND c.contextlevel = :contextlevel
-                 WHERE tcf.userid = :userid AND c.id {$contextsql}";
-
-        $writingdata = $DB->get_recordset_sql($sql, $contextparams);
-        self::export_autosaves($user, $writingdata);
+            $comments = $DB->get_records('tiny_authory_tech_comments', $conditions, 'id');
+            if ($comments) {
+                $data = (object) ['comments' => array_values(array_map(function ($comment) {
+                    return (object) [
+                        'modulename' => $comment->modulename,
+                        'resourceid' => $comment->resourceid,
+                        'questionid' => $comment->questionid,
+                        'comment' => $comment->usercomment,
+                        'timemodified' => transform::datetime($comment->timemodified),
+                    ];
+                }, $comments))];
+                $writer->export_data([$pluginname, get_string('privacy:path:comments', 'tiny_authory_tech')], $data);
+            }
+        }
     }
 
     /**
      * Delete all data for all users in the specified context.
      *
-     * @param \context $context The specific context to delete data for.
+     * @param context $context The specific context to delete data for.
      */
     public static function delete_data_for_all_users_in_context(context $context) {
-        global $DB;
-
-        $filesrecords = $DB->get_records('tiny_authory_tech_files', ['cmid' => $context->instanceid]);
-
-        foreach ($filesrecords as $record) {
-            $DB->delete_records('tiny_authory_tech_user_writing', [
-                'file_id' => $record->id,
-            ]);
-            $DB->delete_records('tiny_authory_tech_writing_diff', [
-                'file_id' => $record->id,
-            ]);
+        if (!$context instanceof context_module) {
+            return;
         }
-
-        $DB->delete_records('tiny_authory_tech_comments', [
-            'cmid' => $context->instanceid,
-        ]);
-        $DB->delete_records('tiny_authory_tech_files', [
-            'cmid' => $context->instanceid,
-        ]);
+        self::delete_data((int) $context->instanceid);
     }
 
     /**
@@ -196,15 +209,11 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
      * @param approved_userlist $userlist The approved context and user information to delete information for.
      */
     public static function delete_data_for_users(approved_userlist $userlist) {
-        global $DB;
-
         $context = $userlist->get_context();
-        $userids = $userlist->get_userids();
-
-        [$useridsql, $useridsqlparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
-        $params = ['cmid' => $context->instanceid] + $useridsqlparams;
-
-        $DB->delete_records_select('tiny_authory_tech_files', "cmid = :cmid AND userid {$useridsql}", $params);
+        if (!$context instanceof context_module) {
+            return;
+        }
+        self::delete_data((int) $context->instanceid, $userlist->get_userids());
     }
 
     /**
@@ -213,84 +222,99 @@ class provider implements core_userlist_provider, meta_provider, plugin_provider
      * @param approved_contextlist $contextlist The approved contexts and user information to delete information for.
      */
     public static function delete_data_for_user(approved_contextlist $contextlist) {
+        $userid = (int) $contextlist->get_user()->id;
+        foreach ($contextlist->get_contexts() as $context) {
+            if ($context instanceof context_module) {
+                self::delete_data((int) $context->instanceid, [$userid]);
+            }
+        }
+    }
+
+    /**
+     * Delete the data of a course module from all four tables, for all users or only the given ones.
+     *
+     * The statistics and differences are deleted first, while the file rows they point at still exist.
+     *
+     * @param int $cmid The course module ID.
+     * @param int[]|null $userids The users to delete data for, or null for all users.
+     */
+    protected static function delete_data(int $cmid, ?array $userids = null): void {
         global $DB;
 
-        $user = $contextlist->get_user();
-
-        [$contextsql, $contextparams] = $DB->get_in_or_equal($contextlist->get_contextids(), SQL_PARAMS_NAMED);
-        $contextparams['userid'] = $user->id;
-        $contextparams['contextlevel'] = CONTEXT_MODULE;
-
-        // Fetch all records from tiny_authory_tech_files for this user and context.
-        $filerecords = $DB->get_records_select(
-            'tiny_authory_tech_files',
-            "userid = :userid AND cmid IN (
-                SELECT instanceid FROM {context} WHERE id {$contextsql} AND contextlevel = :contextlevel
-            )",
-            $contextparams
-        );
-
-        if ($filerecords) {
-            // Collect file ids for deletion in related tables.
-            $fileids = array_keys($filerecords);
-
-            // Delete from tiny_authory_tech_user_writing using file_id.
-            $DB->delete_records_list('tiny_authory_tech_user_writing', 'file_id', $fileids);
-
-            // Delete from tiny_authory_tech_writing_diff using file_id.
-            $DB->delete_records_list('tiny_authory_tech_writing_diff', 'file_id', $fileids);
+        $select = 'cmid = :cmid';
+        $params = ['cmid' => $cmid];
+        if ($userids !== null) {
+            if (empty($userids)) {
+                return;
+            }
+            [$usersql, $userparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+            $select .= " AND userid {$usersql}";
+            $params += $userparams;
         }
 
-        // Delete from tiny_authory_tech_files, tiny_authory_tech_comments using the context and user.
-        $DB->delete_records_select(
-            'tiny_authory_tech_files',
-            "userid = :userid AND cmid IN (
-                SELECT instanceid FROM {context} WHERE id {$contextsql} AND contextlevel = :contextlevel
-            )",
-            $contextparams
-        );
-        $DB->delete_records_select(
-            'tiny_authory_tech_comments',
-            "userid = :userid AND cmid IN (
-                SELECT instanceid FROM {context} WHERE id {$contextsql} AND contextlevel = :contextlevel
-            )",
-            $contextparams
-        );
+        $fileselect = "file_id IN (SELECT id FROM {tiny_authory_tech_files} WHERE {$select})";
+        $DB->delete_records_select('tiny_authory_tech_user_writing', $fileselect, $params);
+        $DB->delete_records_select('tiny_authory_tech_writing_diff', $fileselect, $params);
+        $DB->delete_records_select('tiny_authory_tech_comments', $select, $params);
+        $DB->delete_records_select('tiny_authory_tech_files', $select, $params);
     }
 
     /**
-     * Get the filter options.
+     * Build the export data for one writing session (keystroke file).
      *
-     * This is shared to allow unit testing too.
-     *
+     * @param stdClass $file The tiny_authory_tech_files record.
      * @return stdClass
      */
-    public static function get_filter_options() {
-        return (object) [
-            'overflowdiv' => true,
-            'noclean' => true,
+    protected static function export_session(stdClass $file): stdClass {
+        global $DB;
+
+        $data = (object) [
+            'modulename' => $file->modulename,
+            'resourceid' => $file->resourceid,
+            'questionid' => $file->questionid,
+            'filename' => $file->filename,
+            'submission' => $file->original_content,
+            'uploaded' => transform::yesno($file->uploaded),
+            'timemodified' => transform::datetime($file->timemodified),
         ];
+
+        $stats = $DB->get_record('tiny_authory_tech_user_writing', ['file_id' => $file->id], '*', IGNORE_MULTIPLE);
+        if ($stats) {
+            $data->statistics = (object) [
+                'total_time_seconds' => $stats->total_time_seconds,
+                'key_count' => $stats->key_count,
+                'keys_per_minute' => $stats->keys_per_minute,
+                'character_count' => $stats->character_count,
+                'characters_per_minute' => $stats->characters_per_minute,
+                'word_count' => $stats->word_count,
+                'words_per_minute' => $stats->words_per_minute,
+                'backspace_percent' => $stats->backspace_percent,
+                'score' => $stats->score,
+                'copy_behavior' => $stats->copy_behavior,
+            ];
+        }
+
+        $diff = $DB->get_record('tiny_authory_tech_writing_diff', ['file_id' => $file->id], '*', IGNORE_MULTIPLE);
+        if ($diff) {
+            $data->differences = (object) [
+                'reconstructed_text' => self::decode_text($diff->reconstructed_text),
+                'submitted_text' => self::decode_text($diff->submitted_text),
+                'meta' => $diff->meta,
+            ];
+        }
+
+        return $data;
     }
 
     /**
-     * Export autosave records for a user.
+     * Decode a text the type-server stored as base64-encoded JSON, so the export is readable.
      *
-     * @param stdClass $user The user whose data is being exported.
-     * @param \moodle_recordset $autosaves The recordset of autosave data to export.
+     * @param string|null $value The stored value.
+     * @return string|null The decoded text, or the value unchanged if it is not in that format.
      */
-    protected static function export_autosaves(stdClass $user, \moodle_recordset $autosaves) {
-        foreach ($autosaves as $autosave) {
-            $data = (object)[
-                'userid' => $autosave->userid,
-                'filename' => $autosave->filename ?? '',
-                'timemodified' => transform::datetime($autosave->timemodified),
-            ];
-
-            writer::with_context(\context::instance_by_id($autosave->contextid))
-                ->export_data([
-                    get_string('privacy:metadata:tiny_authory_tech', 'tiny_authory_tech'),
-                ], $data);
-        }
-        $autosaves->close();
+    protected static function decode_text(?string $value): ?string {
+        $decoded = base64_decode((string) $value, true);
+        $text = ($decoded === false) ? null : json_decode($decoded);
+        return is_string($text) ? $text : $value;
     }
 }

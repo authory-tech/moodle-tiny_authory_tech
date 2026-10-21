@@ -237,20 +237,17 @@ class observers {
 
         // Get the course ID from the event data.
         $data     = (object) $event->get_data();
-        $courseid = $data->courseid;
+        $params   = ['courseid' => $data->courseid];
 
-        // Retrieve all file records related to the course.
-        $fileids  = $DB->get_records('tiny_authory_tech_files', ['courseid' => $courseid], '', 'id, filename');
+        // Delete the writing stats and differences of the course's files first, one query per table,
+        // while the file rows they point at still exist.
+        $filesql = "file_id IN (SELECT id FROM {tiny_authory_tech_files} WHERE courseid = :courseid)";
+        $DB->delete_records_select('tiny_authory_tech_user_writing', $filesql, $params);
+        $DB->delete_records_select('tiny_authory_tech_writing_diff', $filesql, $params);
 
         // Delete records from 'tiny_authory_tech_files' and 'tiny_authory_tech_comments' tables.
-        $DB->delete_records('tiny_authory_tech_files', ['courseid' => $courseid]);
-        $DB->delete_records('tiny_authory_tech_comments', ['courseid' => $courseid]);
-
-        // Delete associated user writing records and files.
-        foreach ($fileids as $file) {
-            $DB->delete_records('tiny_authory_tech_user_writing', ['file_id' => $file->id]);
-            $DB->delete_records('tiny_authory_tech_writing_diff', ['file_id' => $file->id]);
-        }
+        $DB->delete_records('tiny_authory_tech_files', $params);
+        $DB->delete_records('tiny_authory_tech_comments', $params);
     }
 
     /**

@@ -61,6 +61,7 @@ class write_local_to_json extends external_api {
      * @param string $jsondata JSON-encoded array of delta events ({t, d, meta})
      * @param string $originaltext Original submission text
      * @return string name of the saved record.
+     * @throws moodle_exception If the course module does not exist, or a capability or plan limit check fails
      */
     public static function execute(
         $resourceid = 0,
@@ -70,7 +71,7 @@ class write_local_to_json extends external_api {
         $jsondata = '',
         $originaltext = ""
     ) {
-        global $USER, $DB, $CFG;
+        global $USER, $DB;
 
         $params = self::validate_parameters(
             self::execute_parameters(),
@@ -92,36 +93,27 @@ class write_local_to_json extends external_api {
             // For Quiz and Assignment there is no resourceid that's why cmid is resourceid.
         }
 
-        $courseid = 0;
+        // Every save belongs to a course module, so the context, the capability and the plan limits
+        // are checked on every call. A missing or unknown cmid is rejected here.
+        $cm = get_coursemodule_from_id('', $params['cmid'], 0, false, MUST_EXIST);
+        $courseid = (int) $cm->course;
+        $params['courseId'] = $courseid;
 
-        $userdata = [];
-        if ($params['cmid']) {
-            $cm = $DB->get_record('course_modules', ['id' => $params['cmid']]);
-            $courseid = $cm->course;
-            $userdata["courseId"] = $courseid;
-            $params['courseId'] = $courseid;
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('tiny/authory_tech:write', $context);
 
-            // Get course context.
-            $context = context_module::instance($params['cmid']);
-            self::validate_context($context);
-            require_capability('tiny/authory_tech:write', $context);
-
-            // Enforce plan limits.
-            if (constants::is_trial_expired()) {
-                throw new moodle_exception('trial_expired', 'tiny_authory_tech');
-            }
-            if (!constants::within_course_limit($courseid)) {
-                throw new moodle_exception('course_limit_reached', 'tiny_authory_tech');
-            }
-            if (!constants::within_student_limit($courseid)) {
-                throw new moodle_exception('student_limit_reached', 'tiny_authory_tech');
-            }
-        } else {
-            $userdata["courseId"] = 0;
+        // Enforce plan limits.
+        if (constants::is_trial_expired()) {
+            throw new moodle_exception('trial_expired', 'tiny_authory_tech');
+        }
+        if (!constants::within_course_limit($courseid)) {
+            throw new moodle_exception('course_limit_reached', 'tiny_authory_tech');
+        }
+        if (!constants::within_student_limit($courseid)) {
+            throw new moodle_exception('student_limit_reached', 'tiny_authory_tech');
         }
 
-        $userdata["clientId"] = $CFG->wwwroot;
-        $userdata["personId"] = $USER->id;
         $questionid = constants::get_question_id($params['editorid']);
 
         $fname = $USER->id . '_' . $params['resourceId'] . '_' . $params['cmid'] . '_attempt' . '.json';

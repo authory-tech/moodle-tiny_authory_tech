@@ -54,9 +54,11 @@ class update_pdf_annote_id extends external_api {
     /**
      * Updates the PDF annotation ID for a comment record
      *
+     * Only the current user's own records are updated, in the course of the given module.
+     *
      * @param int $cmid The course module ID
-     * @param int $userid The user ID (defaults to current user)
-     * @param int $courseid The course ID
+     * @param int $userid Ignored, kept for compatibility: the current user's records are updated
+     * @param int $courseid Ignored, kept for compatibility: the course is taken from the course module
      * @param string $modulename The name of the module
      * @param int $resourceid The PDF annotation comment ID
      * @return bool
@@ -67,6 +69,8 @@ class update_pdf_annote_id extends external_api {
      * @throws \required_capability_exception
      */
     public static function execute($cmid, $userid, $courseid, $modulename, $resourceid) {
+        global $USER;
+
         $params = self::validate_parameters(
             self::execute_parameters(),
             [
@@ -78,11 +82,18 @@ class update_pdf_annote_id extends external_api {
             ],
         );
 
-        $context = context_module::instance($params['cmid']);
+        $cm = get_coursemodule_from_id('', $params['cmid'], 0, false, MUST_EXIST);
+        $context = context_module::instance($cm->id);
         self::validate_context($context);
-        require_capability("tiny/authory_tech:writingreport", $context);
+        require_capability('tiny/authory_tech:write', $context);
 
-        helper::update_resource_id($params);
+        helper::update_resource_id([
+            'userid'     => (int) $USER->id,
+            'courseid'   => (int) $cm->course,
+            'cmid'       => (int) $cm->id,
+            'modulename' => $params['modulename'],
+            'resourceid' => $params['resourceid'],
+        ]);
         return true;
     }
 

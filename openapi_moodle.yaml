@@ -299,35 +299,6 @@ paths:
                               type: string
                               description: JSON-encoded analytics record
 
-  /service.php#authory_tech_filtered_writing:
-    post:
-      operationId: authory_tech_filtered_writing
-      summary: Get filtered writing data
-      description: Returns filtered writing data for a course (e.g. for report generation).
-      tags: [Writing Analytics]
-      x-moodle-capability: tiny/authory_tech:view
-      x-moodle-type: read
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MoodleRequest'
-            example:
-              - index: 0
-                methodname: authory_tech_filtered_writing
-                args:
-                  id: "5"
-      responses:
-        '200':
-          description: JSON-encoded filtered writing data
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MoodleResponse'
-
   /service.php#authory_tech_store_writing_differences:
     post:
       operationId: authory_tech_store_writing_differences

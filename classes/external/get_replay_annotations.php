@@ -21,6 +21,8 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use curl;
+use moodle_exception;
+use tiny_authory_tech\helper;
 
 /**
  * External function authory_tech_get_replay_annotations: get pre-computed AI annotations and analytics for a replay session.
@@ -50,6 +52,7 @@ class get_replay_annotations extends external_api {
      * @return string JSON response from type server, or error JSON
      * @throws \dml_exception
      * @throws \invalid_parameter_exception
+     * @throws moodle_exception
      */
     public static function execute($filepath) {
         global $CFG, $DB;
@@ -59,18 +62,20 @@ class get_replay_annotations extends external_api {
             ['filepath' => $filepath]
         );
 
-        $parts = explode('_', $params['filepath']);
-        $cmid  = $parts[2];
-
-        $context = context_module::instance($cmid);
-        self::validate_context($context);
-        require_capability('tiny/authory_tech:writingreport', $context);
-
         // Look up the actual file record id — this is what the typeserver stores as resource_id.
-        $filerecord = $DB->get_record('tiny_authory_tech_files', ['filename' => $params['filepath']], 'id');
+        // The module and the owner come from the record, never from the file name in the request.
+        $filerecord = $DB->get_record(
+            'tiny_authory_tech_files',
+            ['filename' => $params['filepath']],
+            'id, userid, cmid',
+            IGNORE_MULTIPLE
+        );
         if (!$filerecord) {
-            return json_encode(['error' => 'File record not found']);
+            throw new moodle_exception('filenotfound', 'tiny_authory_tech');
         }
+        $context = context_module::instance($filerecord->cmid);
+        self::validate_context($context);
+        helper::require_data_access((int) $filerecord->userid, $context);
 
         $secret    = get_config('tiny_authory_tech', 'secretkey');
         $serverurl = get_config('tiny_authory_tech', 'python_server');
@@ -102,9 +107,8 @@ class get_replay_annotations extends external_api {
         $sig          = hash_hmac('sha256', $wstoken . ':' . $expires, $secret);
         $teachertoken = $sig . ':' . $expires;
 
-        $userid = intval($parts[0]);
         $url = rtrim($serverurl, '/') . '/sessions/' . $filerecord->id .
-            '/replay-annotations?person_id=' . $userid;
+            '/replay-annotations?person_id=' . (int) $filerecord->userid;
 
         $curl    = new curl();
         $options = [
@@ -135,13 +139,4 @@ class get_replay_annotations extends external_api {
     public static function execute_returns() {
         return new external_value(PARAM_RAW, 'Replay annotations JSON from type server');
     }
-
-    /**
-     * Compute session duration in seconds from the delta events stored in tiny_authory_tech_files.content.
-     * Uses min/max of the `t` (Unix-ms) field across all events. Returns 0 when data is missing or malformed.
-     *
-     * @param int $fileid tiny_authory_tech_files.id
-     * @param object $db Moodle $DB global
-     * @return int Duration in whole seconds, or 0
-     */
 }

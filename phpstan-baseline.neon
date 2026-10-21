@@ -25,34 +25,10 @@ parameters:
 			path: classes/constants.php
 
 		-
-			message: '#^Variable \$filename might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: classes/external/get_comment_link.php
-
-		-
-			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: classes/external/get_replay_annotations.php
-
-		-
 			message: '#^Parameter \#1 \$array \(list\) of array_values is already a list, call has no effect\.$#'
 			identifier: arrayValues.list
 			count: 1
 			path: classes/external/get_reply_json.php
-
-		-
-			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: classes/external/get_reply_json.php
-
-		-
-			message: '#^Parameter \#1 \$cmid of static method core\\context\\module\:\:instance\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: classes/external/get_writing_differences.php
 
 		-
 			message: '#^Parameter \#1 \$qubaid of static method question_engine\:\:load_questions_usage_by_activity\(\) expects int, string given\.$#'
@@ -65,6 +41,12 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: classes/external/user_comments.php
+
+		-
+			message: '#^Parameter \#2 \$format of function format_text expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: classes/helper.php
 
 		-
 			message: '#^Method tiny_authory_tech\\local\\page\\visualization\:\:prepare_data\(\) is unused\.$#'
@@ -187,13 +169,31 @@ parameters:
 			path: tests/constants_test.php
 
 		-
-			message: '#^Call to an undefined method core_privacy\\local\\request\\content_writer\:\:has_any_data\(\)\.$#'
+			message: '#^Variable \$functions might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: tests/external/services_test.php
+
+		-
+			message: '#^Parameter \#1 \$event of static method tiny_authory_tech\\observers\:\:reset_tracking_data\(\) expects core\\event\\course_reset_ended, core\\event\\base given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/observers_test.php
+
+		-
+			message: '#^Call to an undefined method core_privacy\\local\\request\\content_writer\:\:get_custom_file\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: tests/privacy/provider_test.php
 
 		-
+			message: '#^Call to an undefined method core_privacy\\local\\request\\content_writer\:\:get_data\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/privacy/provider_test.php
+
+		-
 			message: '#^Parameter \#3 \$contextids of class core_privacy\\local\\request\\approved_contextlist constructor expects array\<int\>, array\<int, int\> given\.$#'
 			identifier: argument.type
-			count: 2
+			count: 1
 			path: tests/privacy/provider_test.php

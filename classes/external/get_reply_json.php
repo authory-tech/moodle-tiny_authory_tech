@@ -23,6 +23,7 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use moodle_exception;
 use stdClass;
+use tiny_authory_tech\helper;
 
 /**
  * External function authory_tech_get_reply_json: return the stored json file.
@@ -63,20 +64,19 @@ class get_reply_json extends external_api {
                 'filepath' => $filepath,
             ],
         );
-        $parts = explode('_', $params['filepath']);
-        $cmid = $parts[2];
-        $userid = $parts[0];
-        $resourceid = $parts[1];
-
-        $context = context_module::instance($cmid);
+        // The module and the owner come from the stored record, never from the file name in the request.
+        $filedata = $DB->get_record('tiny_authory_tech_files', ['filename' => $params['filepath']], '*', IGNORE_MULTIPLE);
+        if (!$filedata) {
+            throw new moodle_exception('filenotfound', 'tiny_authory_tech');
+        }
+        $context = context_module::instance($filedata->cmid);
         self::validate_context($context);
-        require_capability("tiny/authory_tech:writingreport", $context);
+        helper::require_data_access((int) $filedata->userid, $context);
 
-        $conditions = ["userid" => $userid, 'resourceid' => $resourceid, 'cmid' => $cmid];
+        $conditions = ['userid' => $filedata->userid, 'resourceid' => $filedata->resourceid, 'cmid' => $filedata->cmid];
 
         $data = new stdClass();
         try {
-            $filedata        = $DB->get_record('tiny_authory_tech_files', ['filename' => $params['filepath']]);
             $comments        = $DB->get_records('tiny_authory_tech_comments', $conditions, '', 'usercomment');
             $content         = $filedata->content ? $filedata->content : $content = false;
             $originalcontent = $filedata->original_content ? $filedata->original_content : $originalcontent = false;

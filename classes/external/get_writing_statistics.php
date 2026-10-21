@@ -69,9 +69,11 @@ class get_writing_statistics extends external_api {
             ],
         );
 
-        $context = context_module::instance($vparams['cmid']);
+        // The module and the owner come from the stored record; the cmid parameter is not trusted.
+        $file = $DB->get_record('tiny_authory_tech_files', ['id' => $vparams['fileid']], 'id, userid, cmid', MUST_EXIST);
+        $context = context_module::instance($file->cmid);
         self::validate_context($context);
-        require_capability('tiny/authory_tech:writingreport', $context);
+        helper::require_data_access((int) $file->userid, $context);
 
         $sql = "SELECT u.*, d.meta as effort_ratio, cf.userid, cf.uploaded
                   FROM {tiny_authory_tech_user_writing} u
@@ -90,12 +92,12 @@ class get_writing_statistics extends external_api {
             $rec->first_file = ($firstfileid !== null && $firstfileid == $rec->file_id) ? 1 : 0;
             $rec->resubmit = constants::is_resubmitable($rec, $vparams['fileid']);
             $rec->file_id = $vparams['fileid'];
-            $rec->cmid = $vparams['cmid'];
+            $rec->cmid = (int) $file->cmid;
         } else {
             $rec = new stdClass();
             $rec->resubmit = constants::is_resubmitable($rec, $vparams['fileid']);
             $rec->file_id = $vparams['fileid'];
-            $rec->cmid = $vparams['cmid'];
+            $rec->cmid = (int) $file->cmid;
         }
 
         if (empty($rec->total_time_seconds)) {

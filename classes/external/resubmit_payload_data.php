@@ -21,6 +21,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use dml_exception;
+use invalid_parameter_exception;
 use stdClass;
 
 /**
@@ -52,11 +53,12 @@ class resubmit_payload_data extends external_api {
      * Resubmits payload data for a file
      *
      * @param int $fileid The ID of the file to resubmit
-     * @param int $cmid The course module ID
+     * @param int $cmid The course module ID the file belongs to
      * @return bool True if resubmission was successful, false otherwise
+     * @throws invalid_parameter_exception If the file does not belong to the course module
      */
     public static function execute($fileid, $cmid) {
-        global $DB;
+        global $DB, $USER;
 
         $params = self::validate_parameters(
             self::execute_parameters(),
@@ -66,13 +68,22 @@ class resubmit_payload_data extends external_api {
             ]
         );
 
-        $context = context_module::instance($params['cmid']);
+        $file = $DB->get_record('tiny_authory_tech_files', ['id' => $params['file_id']], 'id, userid, cmid', MUST_EXIST);
+        if ((int) $file->cmid !== $params['cmid']) {
+            throw new invalid_parameter_exception('The file does not belong to this course module');
+        }
+        $context = context_module::instance($file->cmid);
         self::validate_context($context);
-        require_capability("tiny/authory_tech:write", $context);
+        // Users can queue their own file again; anyone else needs the teacher capability in its module.
+        if ((int) $file->userid === (int) $USER->id) {
+            require_capability('tiny/authory_tech:write', $context);
+        } else {
+            require_capability('tiny/authory_tech:view', $context);
+        }
 
         try {
             $record = new stdClass();
-            $record->id = $params['file_id'];
+            $record->id = $file->id;
             $record->uploaded = 0;
             return $DB->update_record('tiny_authory_tech_files', $record);
         } catch (dml_exception $e) {

@@ -16,7 +16,7 @@
 
 namespace tiny_authory_tech\external;
 
-use context_module;
+use context_course;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
@@ -57,7 +57,7 @@ class get_module_list extends external_api {
      */
     public static function execute($page, $courseid) {
 
-        global $CFG, $DB;
+        global $CFG;
         require_once($CFG->libdir . '/accesslib.php');
 
         // Validate parameters.
@@ -69,9 +69,8 @@ class get_module_list extends external_api {
             ],
         );
 
-        // Get course context.
-        $cm = $DB->get_record('course_modules', ['course' => $params['courseid']], '*', MUST_EXIST);
-        $context = context_module::instance($cm->id);
+        // The list covers the whole course, so the capability is checked in the course context.
+        $context = context_course::instance($params['courseid']);
         self::validate_context($context);
         require_capability('tiny/authory_tech:view', $context);
         // Get the list of modules in the course.

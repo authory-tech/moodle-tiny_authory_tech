@@ -20,6 +20,7 @@ use context_module;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
+use invalid_parameter_exception;
 use tiny_authory_tech\constants;
 use tiny_authory_tech\helper;
 
@@ -50,10 +51,10 @@ class get_comment_link extends external_api {
     }
 
     /**
-     * Retrieves comment links and associated data for a given resource
+     * Retrieves comment links and associated data for a quiz attempt
      *
-     * @param int $id The resource ID
-     * @param string $modulename The name of the module (e.g. 'quiz')
+     * @param int $id The quiz attempt ID
+     * @param string $modulename The name of the module, which must be 'quiz'
      * @param int $cmid The course module ID
      * @param int $questionid The question ID
      * @param int $userid The user ID
@@ -78,120 +79,86 @@ class get_comment_link extends external_api {
             ],
         );
 
+        // Only the quiz review page calls this function; the other modules have their own
+        // functions (get_forum_comment_link, get_assign_grade_comment) that scope the lookup
+        // to the checked course module.
+        if ($params['modulename'] !== 'quiz') {
+            throw new invalid_parameter_exception('Only the quiz module is supported');
+        }
+
         $context = context_module::instance($params['cmid']);
         self::validate_context($context);
         require_capability("tiny/authory_tech:view", $context);
 
-        if ($params['modulename'] == 'quiz') {
-            $data['filename'] = '';
-            $conditions = [
-                "resourceid" => $params['id'],
-                "cmid" => $params['cmid'],
-                "questionid" => $params['questionid'],
-                'userid' => $params['userid'],
-            ];
-            $table = 'tiny_authory_tech_comments';
-            $recs = $DB->get_records($table, $conditions);
-            $sql = 'SELECT filename, content, userid, id AS file_id, uploaded
-                      FROM {tiny_authory_tech_files}
-                     WHERE resourceid = :resourceid AND cmid = :cmid
-                           AND modulename = :modulename AND questionid=:questionid AND userid = :userid ';
-            $filename = $DB->get_record_sql(
-                $sql,
-                [
-                    'resourceid' => $params['id'],
-                    'cmid' => $params['cmid'],
-                    'modulename' => $params['modulename'],
-                    'questionid' => $params['questionid'],
-                    "userid" => $params['userid'],
-                ],
-            );
-            if ($filename) {
-                $data['filename'] = $filename->filename;
-                $data['questionid'] = $params['questionid'];
-
-                if ($data['filename']) {
-                    $firstfileid = helper::get_user_first_file_id((int)$filename->userid);
-                    $data['first_file'] = ($firstfileid !== null && $firstfileid == $filename->file_id) ? 1 : 0;
-                }
-
-                if ($filename->file_id) {
-                    $sql = 'SELECT uwr.*, diff.meta as effort_ratio
-                            FROM {tiny_authory_tech_user_writing} uwr
-                        LEFT JOIN {tiny_authory_tech_writing_diff} diff ON uwr.file_id = diff.file_id
-                            WHERE uwr.file_id = :fileid';
-                    $report = $DB->get_record_sql($sql, ['fileid' => $filename->file_id]);
-                    if (isset($report->effort_ratio)) {
-                        $report->effort_ratio = intval(floatval($report->effort_ratio) * 100);
-                    }
-                    if ($report) {
-                        $data['score'] = $report->score;
-                        $data['total_time_seconds'] = $report->total_time_seconds;
-                        $data['word_count'] = $report->word_count;
-                        $data['words_per_minute'] = $report->words_per_minute;
-                        $data['backspace_percent'] = $report->backspace_percent;
-                        $data['copy_behavior'] = $report->copy_behavior;
-                        $data['key_count'] = $report->key_count;
-                        $data['file_id'] = $filename->file_id;
-                        $data['character_count'] = $report->character_count;
-                        $data['characters_per_minute'] = $report->characters_per_minute;
-                        $data['keys_per_minute'] = $report->keys_per_minute;
-                        $data['effort_ratio'] = $report->effort_ratio ?? 0;
-                        $data['uploaded'] = $filename->uploade;
-                    }
-                }
-            }
-            $usercomment = [];
-            if ($recs) {
-                foreach ($recs as $key => $rec) {
-                    array_push($usercomment, $rec);
-                }
-                $data['resubmit'] = constants::is_resubmitable($data, $filename->file_id);
-                $data['file_id'] = $filename->file_id ?? null;
-                $data['cmid'] = $params['cmid'];
-                return json_encode(['usercomment' => $usercomment, 'data' => $data]);
-            } else {
-                return json_encode(['usercomment' => 'comments', 'data' => $data]);
-            }
-        } else {
-            $conditions = ["resourceid" => $params['id']];
-            $table = 'tiny_authory_tech_comments';
-            $recs = $DB->get_records($table, $conditions);
-
-            $attempts = "SELECT  uw.total_time_seconds ,uw.word_count ,uw.words_per_minute,
-                                 uw.backspace_percent,uw.score,uw.copy_behavior,uf.resourceid,
-                                 uf.modulename,uf.userid, uf.filename, uf.uploaded,
-                           FROM {tiny_authory_tech_user_writing} uw
-                           JOIN {tiny_authory_tech_files} uf ON uw.file_id = uf.id
-                          WHERE uf.resourceid = :id
-                                AND uf.cmid = :cmid
-                                AND uf.modulename = :modulename";
-            $data = $DB->get_record_sql($attempts, [
-                'id' => $params['id'],
+        $data['filename'] = '';
+        $conditions = [
+            "resourceid" => $params['id'],
+            "cmid" => $params['cmid'],
+            "questionid" => $params['questionid'],
+            'userid' => $params['userid'],
+        ];
+        $table = 'tiny_authory_tech_comments';
+        $recs = $DB->get_records($table, $conditions);
+        $sql = 'SELECT filename, content, userid, id AS file_id, uploaded
+                  FROM {tiny_authory_tech_files}
+                 WHERE resourceid = :resourceid AND cmid = :cmid
+                       AND modulename = :modulename AND questionid=:questionid AND userid = :userid ';
+        $filename = $DB->get_record_sql(
+            $sql,
+            [
+                'resourceid' => $params['id'],
                 'cmid' => $params['cmid'],
                 'modulename' => $params['modulename'],
-            ]);
+                'questionid' => $params['questionid'],
+                "userid" => $params['userid'],
+            ],
+        );
+        if ($filename) {
+            $data['filename'] = $filename->filename;
+            $data['questionid'] = $params['questionid'];
 
-            if (!isset($data->filename)) {
-                $conditions = [
-                            'resourceid' => $params['id'],
-                            'cmid'       => $params['cmid'],
-                            'modulename' => $params['modulename']];
-                $filename = $DB->get_record('tiny_authory_tech_files', $conditions, 'id, filename');
-                $data['filename'] = $filename->filename;
+            if ($data['filename']) {
+                $firstfileid = helper::get_user_first_file_id((int)$filename->userid);
+                $data['first_file'] = ($firstfileid !== null && $firstfileid == $filename->file_id) ? 1 : 0;
             }
-            $data['resubmit'] = constants::is_resubmitable($data, $filename->id);
-            $data['file_id'] = $filename->id ?? null;
-            $data['cmid'] = $params['cmid'];
-            $usercomment = [];
-            if ($recs) {
-                foreach ($recs as $key => $rec) {
-                    array_push($usercomment, $rec);
+
+            if ($filename->file_id) {
+                $sql = 'SELECT uwr.*, diff.meta as effort_ratio
+                        FROM {tiny_authory_tech_user_writing} uwr
+                    LEFT JOIN {tiny_authory_tech_writing_diff} diff ON uwr.file_id = diff.file_id
+                        WHERE uwr.file_id = :fileid';
+                $report = $DB->get_record_sql($sql, ['fileid' => $filename->file_id]);
+                if (isset($report->effort_ratio)) {
+                    $report->effort_ratio = intval(floatval($report->effort_ratio) * 100);
                 }
-                return json_encode(['usercomment' => $usercomment, 'data' => $data]);
-            } else {
-                return json_encode(['usercomment' => 'comments', 'data' => $data]);
+                if ($report) {
+                    $data['score'] = $report->score;
+                    $data['total_time_seconds'] = $report->total_time_seconds;
+                    $data['word_count'] = $report->word_count;
+                    $data['words_per_minute'] = $report->words_per_minute;
+                    $data['backspace_percent'] = $report->backspace_percent;
+                    $data['copy_behavior'] = $report->copy_behavior;
+                    $data['key_count'] = $report->key_count;
+                    $data['file_id'] = $filename->file_id;
+                    $data['character_count'] = $report->character_count;
+                    $data['characters_per_minute'] = $report->characters_per_minute;
+                    $data['keys_per_minute'] = $report->keys_per_minute;
+                    $data['effort_ratio'] = $report->effort_ratio ?? 0;
+                    $data['uploaded'] = $filename->uploaded;
+                }
             }
+        }
+        $usercomment = [];
+        if ($recs) {
+            foreach ($recs as $key => $rec) {
+                array_push($usercomment, $rec);
+            }
+            $data['resubmit'] = constants::is_resubmitable($data, $filename->file_id ?? null);
+            $data['file_id'] = $filename->file_id ?? null;
+            $data['cmid'] = $params['cmid'];
+            return json_encode(['usercomment' => $usercomment, 'data' => $data]);
+        } else {
+            return json_encode(['usercomment' => 'comments', 'data' => $data]);
         }
     }
 

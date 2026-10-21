@@ -27,7 +27,6 @@ use core_external\external_api;
  * @covers \tiny_authory_tech\external\disable_all_course
  */
 final class services_test extends \advanced_testcase {
-
     /**
      * Every function declared in db/services.php is installed, implemented by a class in
      * classes/external, and exposes valid parameter and return descriptions.
@@ -36,7 +35,7 @@ final class services_test extends \advanced_testcase {
         global $CFG, $DB;
 
         require($CFG->dirroot . '/lib/editor/tiny/plugins/authory_tech/db/services.php');
-        /** @var array<string, array<string, mixed>> $functions Defined by db/services.php. */
+        // The $functions array is defined by db/services.php.
         $this->assertNotEmpty($functions);
 
         $installed = $DB->count_records('external_functions', ['component' => 'tiny_authory_tech']);

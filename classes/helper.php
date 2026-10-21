@@ -26,6 +26,68 @@ namespace tiny_authory_tech;
  */
 class helper {
     /**
+     * Check that the current user may read writing data that belongs to a user in a course module.
+     *
+     * The tiny/authory_tech:writingreport and :write capabilities are given to students, so on their
+     * own they only prove that a user may see their own data. Reading another user's data needs the
+     * teacher capability tiny/authory_tech:view in the module the data belongs to.
+     *
+     * @param int $ownerid The user the data belongs to, taken from the stored record.
+     * @param \context $context The module context of the stored record, never one named in the request.
+     * @return void
+     * @throws \required_capability_exception
+     */
+    public static function require_data_access(int $ownerid, \context $context): void {
+        global $USER;
+
+        if ($ownerid === (int) $USER->id) {
+            require_capability('tiny/authory_tech:writingreport', $context);
+        } else {
+            require_capability('tiny/authory_tech:view', $context);
+        }
+    }
+
+    /**
+     * Load a keystroke file for a report page and check the current user may read it.
+     *
+     * Logs the user in to the course module of the file record (not one named in the request)
+     * and then applies {@see self::require_data_access()}.
+     *
+     * @param int $fileid The tiny_authory_tech_files record id.
+     * @return \stdClass The file record.
+     * @throws \moodle_exception
+     */
+    public static function require_file_page_access(int $fileid): \stdClass {
+        global $DB;
+
+        $file = $DB->get_record('tiny_authory_tech_files', ['id' => $fileid], '*', MUST_EXIST);
+        [$course, $cm] = get_course_and_cm_from_cmid($file->cmid);
+        require_login($course, false, $cm);
+        self::require_data_access((int) $file->userid, \context_module::instance($cm->id));
+
+        return $file;
+    }
+
+    /**
+     * Clean the submitted text that the type-server stores in tiny_authory_tech_writing_diff.
+     *
+     * The column holds base64-encoded JSON whose value is the student's submission as HTML, with
+     * pasted or edited parts wrapped in spans. It is shown to teachers as HTML, so it goes through
+     * Moodle's HTML cleaning like any other user-submitted text.
+     *
+     * @param string|null $encoded The submitted_text column value.
+     * @param \context $context The module context the submission belongs to.
+     * @return string The cleaned HTML, or an empty string if the value is not a JSON string.
+     */
+    public static function clean_submitted_text(?string $encoded, \context $context): string {
+        $html = json_decode(base64_decode((string) $encoded));
+        if (!is_string($html)) {
+            return '';
+        }
+        return format_text($html, FORMAT_HTML, ['context' => $context, 'filter' => false]);
+    }
+
+    /**
      * Updates resource IDs for both comments and authory_tech files
      *
      * @param array $data Array containing userid, modulename, courseid, cmid and resourceid

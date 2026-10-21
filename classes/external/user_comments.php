@@ -58,7 +58,7 @@ class user_comments extends external_api {
      * @param string $modulename The name of the module
      * @param int $cmid Course module ID
      * @param int $resourceid Resource ID
-     * @param int $courseid Course ID
+     * @param int $courseid Ignored, kept for compatibility: the course is taken from the course module
      * @param string $usercomment The user's comment text
      * @param int $timemodified Time when comment was modified
      * @param string $editorid Editor instance ID
@@ -92,8 +92,9 @@ class user_comments extends external_api {
             ],
         );
         require_once($CFG->libdir . '/accesslib.php');
-        // Capability check.
-        $context = context_module::instance($params['cmid']);
+        // Capability check. The course is taken from the course module, not from the request.
+        $cm = get_coursemodule_from_id('', $params['cmid'], 0, false, MUST_EXIST);
+        $context = context_module::instance($cm->id);
         self::validate_context($context);
         require_capability("tiny/authory_tech:write", $context);
 
@@ -111,7 +112,7 @@ class user_comments extends external_api {
         $dataobject->cmid = $params['cmid'];
         $dataobject->modulename = $params['modulename'];
         $dataobject->resourceid = $params['resourceid'];
-        $dataobject->courseid = $params['courseid'];
+        $dataobject->courseid = $cm->course;
         $dataobject->questionid = $questionid ?? 0;
         $dataobject->usercomment = $params['usercomment'];
         $dataobject->timemodified = $params['timemodified'];

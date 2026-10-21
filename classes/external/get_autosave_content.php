@@ -21,6 +21,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use tiny_authory_tech\constants;
+use tiny_authory_tech\helper;
 
 /**
  * External function authory_tech_get_autosave_content: resubmit payload data.
@@ -86,9 +87,11 @@ class get_autosave_content extends external_api {
             $params['questionid'] = 0;
         }
 
+        // Rows are looked up by this cmid, so the module context is the one the data belongs to.
+        // Reading another user's autosaves needs the teacher capability.
         $context = context_module::instance($params['cmid']);
         self::validate_context($context);
-        require_capability("tiny/authory_tech:writingreport", $context);
+        helper::require_data_access((int) $params['userid'], $context);
 
         $questionid = constants::get_question_id($params['editorid']);
         if ($questionid) {

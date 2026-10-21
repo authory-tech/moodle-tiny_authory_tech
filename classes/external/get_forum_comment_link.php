@@ -77,7 +77,8 @@ class get_forum_comment_link extends external_api {
         self::validate_context($context);
         require_capability('tiny/authory_tech:view', $context);
 
-        $conditions = ["resourceid" => $params['id'], 'modulename' => "forum"];
+        // Only comments stored for the module the capability was checked in.
+        $conditions = ['resourceid' => $params['id'], 'modulename' => $params['modulename'], 'cmid' => $params['cmid']];
         $recs = $DB->get_records('tiny_authory_tech_comments', $conditions);
 
         $attempts = "SELECT uw.total_time_seconds, uw.word_count, uw.words_per_minute, uf.uploaded,
@@ -113,14 +114,17 @@ class get_forum_comment_link extends external_api {
                 ['resourceid' => $params['id'], 'cmid' => $params['cmid'], 'modulename' => $params['modulename']],
             );
 
-            $data['filename'] = $filename->filename;
-            $data['file_id'] = $filename->file_id;
-            $data['resubmit'] = constants::is_resubmitable($data, $filename->file_id);
-            $data['cmid'] = $params['cmid'];
+            // A post written without the editor plugin has no file.
+            if ($filename) {
+                $data['filename'] = $filename->filename;
+                $data['file_id'] = $filename->file_id;
+                $data['resubmit'] = constants::is_resubmitable($data, $filename->file_id);
+                $data['cmid'] = $params['cmid'];
 
-            $firstfileid = helper::get_user_first_file_id((int)$filename->userid);
-            if ($firstfileid !== null && $firstfileid == $filename->file_id) {
-                $data['first_file'] = 1;
+                $firstfileid = helper::get_user_first_file_id((int)$filename->userid);
+                if ($firstfileid !== null && $firstfileid == $filename->file_id) {
+                    $data['first_file'] = 1;
+                }
             }
         }
 

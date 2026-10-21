@@ -34,29 +34,6 @@ function tiny_authory_tech_get_checks(): array {
 }
 
 /**
- * Given an array with a file path, it returns the itemid and the filepath for the defined filearea.
- *
- * @param array $args The path (the part after the filearea and before the filename).
- * @return array The itemid and the filepath inside the $args path, for the defined filearea.
- */
-function tiny_authory_tech_get_path_from_pluginfile(array $args): array {
-    // Authory.tech never has an itemid (the number represents the revision but it's not stored in database).
-    array_shift($args);
-
-    // Get the filepath.
-    if (empty($args)) {
-        $filepath = '/';
-    } else {
-        $filepath = '/' . implode('/', $args) . '/';
-    }
-
-    return [
-        'itemid'   => 0,
-        'filepath' => $filepath,
-    ];
-}
-
-/**
  * Returns true if the plugin is globally disabled via the AUTHORY-TECH-INSTANCE-ENABLE env var.
  *
  * @return bool True if disabled, false if enabled
@@ -67,38 +44,6 @@ function tiny_authory_tech_is_instance_disabled(): bool {
         return strtoupper(trim($envval)) !== 'TRUE';
     }
     return (bool) get_config('tiny_authory_tech', 'disabled');
-}
-
-/**
- * Serves files from the tiny_authory_tech plugin's file storage area.
- *
- * This function handles file serving requests for files stored in the tiny_authory_tech
- * plugin's file area. It retrieves and sends the requested file to the user.
- *
- * @param stdClass $context The context object for file access permissions
- * @param string $filearea The file area identifier within tiny_authory_tech
- * @param array $args Array of path segments identifying the file
- * @param bool $forcedownload If true, forces file download rather than display
- * @param array $options Additional options for file serving (e.g. caching, filters)
- * @return void|bool Returns false if file not found, void otherwise
- */
-function tiny_authory_tech_pluginfile($context, $filearea, $args, $forcedownload, array $options = []) {
-    $itemid = array_shift($args);
-    $filename = array_pop($args);
-
-    if (!$args) {
-        $filepath = '/';
-    } else {
-        $filepath = '/' . implode('/', $args) . '/';
-    }
-
-    $fs   = get_file_storage();
-
-    $file = $fs->get_file($context->id, 'tiny_authory_tech', $filearea, $itemid, $filepath, $filename);
-    if (!$file) {
-        return false;
-    }
-    send_stored_file($file, 0, 0, $forcedownload, $options);
 }
 
 /**
@@ -230,7 +175,8 @@ function tiny_authory_tech_coursemodule_edit_post_actions($formdata, $course) {
         return $formdata;
     }
     // Constants::NAMES is authory_tech supported plugin list defined in tiny_authory_tech\constant class.
-    if (in_array($formdata->modulename, constants::NAMES)) {
+    // Modules created without the form field (web services, restore, generators) keep their settings.
+    if (in_array($formdata->modulename, constants::NAMES) && isset($formdata->authory_tech_status)) {
         $state    = (int) $formdata->authory_tech_status;
         $courseid = $course->id;
         $instance = $formdata->coursemodule;
@@ -457,39 +403,6 @@ function tiny_authory_tech_test_connection($url) {
     } catch (moodle_exception $e) {
         return json_encode(['status' => false, 'message' => $e->getMessage()]);
     }
-}
-
-/**
- * Creates a URL for a file in the tiny_authory_tech file area
- *
- * @param \context $context The context object
- * @param stdClass $user The user object containing fileid
- * @return string|false Returns the download URL for the file, or false if no file found
- * @throws coding_exception
- */
-function tiny_authory_tech_file_urlcreate($context, $user) {
-    $fs    = get_file_storage();
-    $files = $fs->get_area_files($context->id, 'tiny_authory_tech', 'attachment', $user->fileid, 'sortorder', false);
-
-    foreach ($files as $file) {
-        if ($file->get_filename() != '.') {
-            $fileurl = moodle_url::make_pluginfile_url(
-                $file->get_contextid(),
-                $file->get_component(),
-                $file->get_filearea(),
-                $file->get_itemid(),
-                $file->get_filepath(),
-                $file->get_filename(),
-                true
-            );
-            // Display the image.
-            $downloadurl = $fileurl->get_port() ?
-                $fileurl->get_scheme() . '://' . $fileurl->get_host() . ':' . $fileurl->get_port() . $fileurl->get_path() :
-                $fileurl->get_scheme() . '://' . $fileurl->get_host() . $fileurl->get_path();
-            return $downloadurl;
-        }
-    }
-    return false;
 }
 
 /**

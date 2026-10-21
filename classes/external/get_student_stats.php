@@ -17,7 +17,6 @@
 namespace tiny_authory_tech\external;
 
 use context_module;
-use context_system;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
@@ -51,8 +50,8 @@ class get_student_stats extends external_api {
      * Proxy GET /assignments/:cmid/students/:userid/stats to the type server.
      * Auth uses HMAC-SHA256(secret, ws_token:expires) to generate X-Teacher-Token.
      *
-     * @param int $resourceid Course module ID
-     * @param int $userid Student user ID
+     * @param int $resourceid File record ID; the course module and the student are taken from this record
+     * @param int $userid Student user ID (kept for compatibility, the file record's owner is used instead)
      * @return string JSON response from type server, or error JSON
      */
     public static function execute($resourceid, $userid) {
@@ -65,8 +64,9 @@ class get_student_stats extends external_api {
             ['resource_id' => $resourceid, 'userid' => $userid]
         );
 
-        $filerecord = $DB->get_record('tiny_authory_tech_files', ['id' => $params['resource_id']], 'id, cmid');
-        $context = $filerecord ? context_module::instance($filerecord->cmid) : context_system::instance();
+        // The module and the student come from the stored record, never from the request.
+        $filerecord = $DB->get_record('tiny_authory_tech_files', ['id' => $params['resource_id']], 'id, userid, cmid', MUST_EXIST);
+        $context = context_module::instance($filerecord->cmid);
         self::validate_context($context);
         require_capability('tiny/authory_tech:view', $context);
 
@@ -102,7 +102,7 @@ class get_student_stats extends external_api {
         $sig          = hash_hmac('sha256', $wstoken . ':' . $expires, $secret);
         $teachertoken = $sig . ':' . $expires;
 
-        $url = rtrim($serverurl, '/') . '/assignments/' . $filerecord->cmid . '/students/' . $params['userid'] . '/stats';
+        $url = rtrim($serverurl, '/') . '/assignments/' . $filerecord->cmid . '/students/' . (int) $filerecord->userid . '/stats';
 
         $curl    = new curl();
         $options = [

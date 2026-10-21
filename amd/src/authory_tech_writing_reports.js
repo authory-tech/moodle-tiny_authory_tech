@@ -121,7 +121,6 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                     e.preventDefault();
 
                     const link1 = $(this).attr('href');
-                    const link2 = $(this).data('link');
 
                     let type = 'SAVE_CANCEL';
                     let optionModal = Modal;
@@ -130,6 +129,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                     select.classList.add('form-control', 'inputUrl');
 
                     let title = await str.get_string('download', 'tiny_authory_tech');
+                    const okText = await str.get_string('ok', 'core');
 
                     // Add CSV option
                     if (csvOption) {
@@ -144,21 +144,8 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                         }
                     }
 
-                    // Add API key option
-                    if (hasApiKey) {
-                        try {
-                            const text = await str.get_string('analyticspdf', 'tiny_authory_tech');
-                            let option2 = document.createElement('option');
-                            option2.text = text;
-                            option2.value = 1;
-                            select.appendChild(option2);
-                        } catch (error) {
-                            window.console.error(error);
-                        }
-                    }
-
                     // If no options available
-                    if (!hasApiKey && !csvOption) {
+                    if (!csvOption) {
                         try {
                             const noOptionText = await str.get_string('no_option', 'tiny_authory_tech');
                             const messageText = await str.get_string('message', 'tool_dataprivacy');
@@ -177,7 +164,7 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
                         body: select,
                         removeOnClose: true,
                         buttons: type === 'SAVE_CANCEL' ? [{
-                            text: 'OK',
+                            text: okText,
                             type: 'submit',
                             primary: true
                         }] : []
@@ -186,15 +173,10 @@ define(["jquery", "core/ajax", "core/str", "core/templates", "./replay", './anal
 
                         if (type === 'SAVE_CANCEL') {
                             modal.getRoot().on(Events.save, function() {
-                                const data = document.getElementById('download-type');
-                                if (!data) {
+                                if (!document.getElementById('download-type')) {
                                     return;
                                 }
-                                if (parseInt(data.value)) {
-                                    window.location.href = link2;
-                                } else {
-                                    window.location.href = link1;
-                                }
+                                window.location.href = link1;
                             });
                         }
                         return modal;
